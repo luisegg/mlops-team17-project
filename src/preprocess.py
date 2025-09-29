@@ -92,7 +92,7 @@ def preprocess(input_path,output_path):
     df_final = df4.copy()
     #Saves the preprocessed data to the output path
     os.makedirs(os.path.dirname(output_path),exist_ok=True)
-    df_final.to_csv(output_path,header=None,index=False)
+    df_final.to_csv(output_path,header=True,index=False)
     print(f"Preprocesses data saved to {output_path}")
 
 if __name__=="__main__":
