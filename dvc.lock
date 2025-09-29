@@ -1,0 +1,18 @@
+schema: '2.0'
+stages:
+  preprocess:
+    cmd: python src/preprocess.py
+    deps:
+    - path: data/raw/steel_energy_modified.csv
+      hash: md5
+      md5: 066018aa01ed991bf060cdfe01c15834
+      size: 3157634
+    - path: src/preprocess.py
+      hash: md5
+      md5: 5ef5deea09050afcd7e3e4fa521d5f5f
+      size: 1052
+    outs:
+    - path: data/processed/steel_energy_modified_clean.csv
+      hash: md5
+      md5: 14b481c81ac8896ed97b73618eb51723
+      size: 3162090

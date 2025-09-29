@@ -1,0 +1,8 @@
+stages:
+  preprocess:
+    cmd: python src/preprocess.py
+    deps:
+    - data/raw/steel_energy_modified.csv
+    - src/preprocess.py
+    outs:
+    - data/processed/steel_energy_modified_clean.csv

@@ -1,0 +1,11 @@
+preprocess:
+  input: data/raw/steel_energy_modified.csv
+  output: data/processed/steel_energy_modified_clean.csv
+
+train:
+  data: data/raw/steel_energy_modified_clean.csv
+  model: models/model.pkl
+  random_state: 42
+  n_estimators: 100
+  max_depth: 5
+  
