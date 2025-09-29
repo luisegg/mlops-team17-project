@@ -9,10 +9,10 @@ stages:
       size: 3157634
     - path: src/preprocess.py
       hash: md5
-      md5: 5ef5deea09050afcd7e3e4fa521d5f5f
-      size: 1052
+      md5: 0a6327bf850b6e3ed1256da023e8eb14
+      size: 3415
     outs:
     - path: data/processed/steel_energy_modified_clean.csv
       hash: md5
-      md5: 14b481c81ac8896ed97b73618eb51723
-      size: 3162090
+      md5: a289f58a492807aaae526cdd2741aa17
+      size: 2511127
