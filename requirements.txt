@@ -2,3 +2,5 @@ dvc
 dvc-s3
 pandas
 scikit-learn
+mlflow
+python-dotenv

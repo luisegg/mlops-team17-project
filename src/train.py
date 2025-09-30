@@ -9,18 +9,57 @@ from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from sklearn.model_selection import GridSearchCV, TimeSeriesSplit, KFold
-from sklearn.linear_model import LinearRegression, TweedieRegressor
+from sklearn.linear_model import LinearRegression
 import numpy as np
+import mlflow
+from mlflow.models import infer_signature
 import joblib
 import json
+import os
+from dotenv import load_dotenv
 
 TARGET = "Usage_kWh"
+
+# Load environment variables from .env located at project root
+# This prevents committing sensitive values to version control
+load_dotenv()
+
+# Read tracking configuration from environment variables
+mlflow_tracking_uri = os.getenv('MLFLOW_TRACKING_URI')
+mlflow_tracking_username = os.getenv('MLFLOW_TRACKING_USERNAME')
+mlflow_tracking_password = os.getenv('MLFLOW_TRACKING_PASSWORD')
+
+
+# Set process env for MLflow and clients that read from env vars
+os.environ['MLFLOW_TRACKING_URI'] = mlflow_tracking_uri
+os.environ['MLFLOW_TRACKING_USERNAME'] = mlflow_tracking_username
+os.environ['MLFLOW_TRACKING_PASSWORD'] = mlflow_tracking_password
 
 def load_params(path="params.yaml"):
     if Path(path).exists():
         with open(path, "r") as f:
             return yaml.safe_load(f)
     raise FileNotFoundError("params.yaml no encontrado")
+
+def split_train_test_data(df, test_size):
+    # Separates X/y
+    y = df[TARGET].copy()
+    X = df.drop(columns=[TARGET]).copy()
+
+    # Split with scikit-learn
+    # order by date and NO shuffle (temporal)
+    order = df["date"].argsort()
+    X = X.iloc[order]
+    y = y.iloc[order]
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=test_size, shuffle=False
+    )
+
+    print(f"[split] test_size={test_size}")
+    print(f"[split] X_train: {X_train.shape} | X_test: {X_test.shape}")
+    print(f"[split] y_train: {y_train.shape} | y_test: {y_test.shape}")
+
+    return X_train, X_test, y_train, y_test
 
 def build_preprocessor():
     pre = ColumnTransformer(
@@ -81,58 +120,67 @@ def build_cv(cfg):
 def build_glr_model():
     return LinearRegression(fit_intercept=False)
 
+
 def main():
     params = load_params()
     data_path   = params["preprocess"]["output"]
     split_cfg   = params.get("split", {})
-    method      = split_cfg.get("method", "time")      # 'time' o 'random'
+    #method      = split_cfg.get("method", "time")      # 'time' o 'random'
     test_size   = split_cfg.get("test_size", 0.2)
     random_state= split_cfg.get("random_state", 42)
 
-
-    
-    # 1) Loads the data
+    # 1 Loads the data
     df = pd.read_csv(data_path, parse_dates=["date"])
 
-    # 2) Separates X/y
-    y = df[TARGET].copy()
-    X = df.drop(columns=[TARGET]).copy()
+    # 2 Splits the data
+    X_train, X_test, y_train, y_test = split_train_test_data(df=df, test_size=test_size)
 
-    # 3) Split with scikit-learn
-    if method == "time":
-        # order by date and NO shuffle (temporal)
-        order = df["date"].argsort()
-        X = X.iloc[order]
-        y = y.iloc[order]
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=test_size, shuffle=False
-        )
-    elif method == "random":
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=test_size, random_state=random_state, shuffle=True
-        )
-    else:
-        raise ValueError("split.method debe ser 'time' o 'random'")
-
-    print(f"[split] método={method}  test_size={test_size}  rs={random_state}")
-    print(f"[split] X_train: {X_train.shape} | X_test: {X_test.shape}")
-    print(f"[split] y_train: {y_train.shape} | y_test: {y_test.shape}")
-
-    
     pre = build_preprocessor()
-    #est = build_rf_model(params)
-    est = build_glr_model()
 
-    pipe = Pipeline([('prep', pre), ('est', est)])
+    # Configure MLflow tracking URI from env (already set above)
+    if mlflow_tracking_uri:
+        mlflow.set_tracking_uri(uri=mlflow_tracking_uri)
 
-    # 4) Fit the model
-    pipe.fit(X_train, y_train)
+    models = ['glr']
+    for model in models:
+        with mlflow.start_run():            
+            mlflow.set_experiment('Linear Regression')
 
-    y_pred = pipe.predict(X_test)
+            #est = build_rf_model(params)
+            # Builds the model
+            est = build_glr_model()
 
-    print("RMSE:", mean_squared_error(y_test, y_pred))
-    print("MAE:", mean_absolute_error(y_test, y_pred))
-    print("R2:", r2_score(y_test, y_pred))
+            # Creates a pipeline
+            pipe = Pipeline([('prep', pre), ('est', est)])
+
+            # Fit the model
+            pipe.fit(X_train, y_train)
+
+            #Predicts
+            y_pred = pipe.predict(X_test)
+
+            '''
+            signature = infer_signature(X_train, y_train)
+
+            model_info = mlflow.sklearn.log_model(
+                sk_model = est,
+                artifact_path='glr_model',
+                signature = signature,
+                input_example = X_train,
+                #registered_model_name = 'Linear Regression'
+            )
+            '''
+
+            # Calculates a logs metrics
+            RMSE = mean_squared_error(y_test, y_pred)
+            MAE  = mean_absolute_error(y_test, y_pred)
+            R2   = r2_score(y_test, y_pred)
+            mlflow.log_metric('RMSE', RMSE)
+            mlflow.log_metric('MAE', MAE)
+            mlflow.log_metric('R2', R2)
+            print('RMSE:', RMSE)
+            print('MAE:', MAE)
+            print('R2:', R2)
 
     '''
     Path("models").mkdir(parents=True, exist_ok=True)
