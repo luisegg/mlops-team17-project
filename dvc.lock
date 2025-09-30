@@ -16,3 +16,14 @@ stages:
       hash: md5
       md5: 22132a9298fa6d703593b741a1da9f53
       size: 2511322
+  train:
+    cmd: python src/train.py
+    deps:
+    - path: data/processed/steel_energy_modified_clean.csv
+      hash: md5
+      md5: 22132a9298fa6d703593b741a1da9f53
+      size: 2511322
+    - path: src/train.py
+      hash: md5
+      md5: bd14c6f36ed14d557a2f3ea908eacf83
+      size: 6791

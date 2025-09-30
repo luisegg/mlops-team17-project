@@ -6,3 +6,8 @@ stages:
     - src/preprocess.py
     outs:
     - data/processed/steel_energy_modified_clean.csv
+  train:
+    cmd: python src/train.py
+    deps:
+    - data/processed/steel_energy_modified_clean.csv
+    - src/train.py
