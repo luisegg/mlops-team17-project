@@ -10,6 +10,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, root_mean_squared_error
 from sklearn.linear_model import LinearRegression
 from sklearn.neighbors import KNeighborsRegressor
+from sklearn.tree import DecisionTreeRegressor
 import numpy as np
 import mlflow
 from mlflow.models import infer_signature
@@ -161,6 +162,71 @@ def run_knn_regression(X_train, y_train, X_test, y_test, pre):
 
                 log_run_to_mlflow(exp, params=params, metrics=metrics, model=pipe)
 
+def run_cart_regression(X_train, y_train, X_test, y_test, pre):
+    exp = "CARTRegression"
+
+    max_depth_list = [None, 5]
+    min_samples_split_list = [2, 5]
+    min_samples_leaf_list = [1, 2, 5]
+    max_features_list = [None, "sqrt", "log2"]  # nº features consideradas al dividir
+
+    for md in max_depth_list:
+        for mss in min_samples_split_list:
+            for msl in min_samples_leaf_list:
+                for mf in max_features_list:
+                    params = {
+                        "max_depth": md,
+                        "min_samples_split": mss,
+                        "min_samples_leaf": msl,
+                        "max_features": mf,
+                        "random_state": 42,
+                    }
+
+                    est = DecisionTreeRegressor(**params)
+                    pipe = Pipeline([("prep", pre), ("est", est)])
+
+                    # Entrena
+                    pipe.fit(X_train, y_train)
+
+                    # Predice
+                    y_pred = pipe.predict(X_test)
+
+                    # Métricas (RMSE real: squared=False)
+                    rmse = root_mean_squared_error(y_test, y_pred)
+                    mae  = mean_absolute_error(y_test, y_pred)
+                    r2   = r2_score(y_test, y_pred)
+                    print(f"[CART] {params} -> RMSE={rmse:.3f} MAE={mae:.3f} R2={r2:.3f}")
+
+                    metrics = {"RMSE": rmse, "MAE": mae, "R2": r2}
+                    log_run_to_mlflow(exp, params=params, metrics=metrics, model=None)
+
+def run_cart_regression2(X_tr, y_tr, X_te, y_te, pre):
+    exp = "CARTRegression"
+
+    # --- 1) candidates de ccp_alpha ---
+    alphas = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+
+    # --- 2) probar cada alpha ---
+    for alpha in alphas:
+        est = DecisionTreeRegressor(ccp_alpha=float(alpha), random_state=42)
+        pipe = Pipeline([("prep", pre), ("est", est)])
+
+        pipe.fit(X_tr, y_tr)
+        y_pred = pipe.predict(X_te)
+
+        # RMSE compatible con cualquier versión de sklearn
+        rmse = float(root_mean_squared_error(y_te, y_pred))
+        mae  = float(mean_absolute_error(y_te, y_pred))
+        r2   = float(r2_score(y_te, y_pred))
+
+        params  = {"ccp_alpha": float(alpha), "random_state": 42}
+        metrics = {"RMSE": rmse, "MAE": mae, "R2": r2}
+
+        # Reutiliza tu helper de MLflow
+        log_run_to_mlflow(experiment_name=exp,
+                          params=params, metrics=metrics, model=None)
+
+        print(f"[CART] ccp_alpha={alpha:.6g} -> RMSE={rmse:.3f} MAE={mae:.3f} R2={r2:.3f}")
 
 
 def main():
@@ -182,8 +248,9 @@ def main():
     pre = build_preprocessor()
 
     #run_linear_regression(X_train, y_train, X_test, y_test, pre)
-    run_knn_regression(X_train, y_train, X_test, y_test, pre)
-
+    #run_knn_regression(X_train, y_train, X_test, y_test, pre)
+    #run_cart_regression(X_train, y_train, X_test, y_test, pre)
+    run_cart_regression2(X_train, y_train, X_test, y_test, pre)
 
 
 
