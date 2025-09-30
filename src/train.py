@@ -200,7 +200,7 @@ def run_cart_regression(X_train, y_train, X_test, y_test, pre):
                     metrics = {"RMSE": rmse, "MAE": mae, "R2": r2}
                     log_run_to_mlflow(exp, params=params, metrics=metrics, model=None)
 
-def run_cart_regression2(X_tr, y_tr, X_te, y_te, pre):
+def run_cart_regression2(X_train, y_train, X_test, y_test, pre):
     exp = "CARTRegression"
 
     # --- 1) candidates de ccp_alpha ---
@@ -211,13 +211,13 @@ def run_cart_regression2(X_tr, y_tr, X_te, y_te, pre):
         est = DecisionTreeRegressor(ccp_alpha=float(alpha), random_state=42)
         pipe = Pipeline([("prep", pre), ("est", est)])
 
-        pipe.fit(X_tr, y_tr)
-        y_pred = pipe.predict(X_te)
+        pipe.fit(X_train, y_train)
+        y_pred = pipe.predict(X_test)
 
         # RMSE compatible con cualquier versión de sklearn
-        rmse = float(root_mean_squared_error(y_te, y_pred))
-        mae  = float(mean_absolute_error(y_te, y_pred))
-        r2   = float(r2_score(y_te, y_pred))
+        rmse = float(root_mean_squared_error(y_test, y_pred))
+        mae  = float(mean_absolute_error(y_test, y_pred))
+        r2   = float(r2_score(y_test, y_pred))
 
         params  = {"ccp_alpha": float(alpha), "random_state": 42}
         metrics = {"RMSE": rmse, "MAE": mae, "R2": r2}
