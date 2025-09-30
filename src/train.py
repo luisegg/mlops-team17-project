@@ -9,6 +9,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from sklearn.model_selection import GridSearchCV, TimeSeriesSplit, KFold
+from sklearn.linear_model import LinearRegression, TweedieRegressor
 import numpy as np
 import joblib
 import json
@@ -77,6 +78,9 @@ def build_cv(cfg):
     rs = cv_cfg.get("random_state", 42)
     return KFold(n_splits=n_splits, shuffle=shuffle, random_state=rs)
 
+def build_glr_model():
+    return LinearRegression(fit_intercept=False)
+
 def main():
     params = load_params()
     data_path   = params["preprocess"]["output"]
@@ -85,6 +89,8 @@ def main():
     test_size   = split_cfg.get("test_size", 0.2)
     random_state= split_cfg.get("random_state", 42)
 
+
+    
     # 1) Loads the data
     df = pd.read_csv(data_path, parse_dates=["date"])
 
@@ -114,84 +120,21 @@ def main():
 
     
     pre = build_preprocessor()
-    est = build_rf_model(params)
+    #est = build_rf_model(params)
+    est = build_glr_model()
 
     pipe = Pipeline([('prep', pre), ('est', est)])
 
     # 4) Fit the model
     pipe.fit(X_train, y_train)
 
-    gs_cfg = params.get("gridsearch", {})
-    enabled = bool(gs_cfg.get("enabled", False))
+    y_pred = pipe.predict(X_test)
 
-    Path("artifacts").mkdir(exist_ok=True, parents=True)
-
-    if enabled:
-        # Scoring (default: neg RMSE)
-        scoring = gs_cfg.get("scoring", "neg_root_mean_squared_error")
-        cv = build_cv(gs_cfg)
-
-        # Param grid desde YAML
-        # Nota: si NO usas TransformedTargetRegressor, los nombres serían 'est__<param>'
-        param_grid = gs_cfg.get("param_grid", {})
-        if not param_grid:
-            raise ValueError("gridsearch.enabled=true pero param_grid está vacío en params.yaml")
-
-        gs = GridSearchCV(
-            estimator=pipe,
-            param_grid=param_grid,
-            scoring=scoring,
-            cv=cv,
-            n_jobs=gs_cfg.get("n_jobs", -1),
-            verbose=gs_cfg.get("verbose", 1),
-            refit=gs_cfg.get("refit", True),
-            return_train_score=True
-        )
-
-        print("[grid] iniciando GridSearchCV…")
-        gs.fit(X_train, y_train)
-
-        # Mejor estimador (ya refitteado en todo el dataset si refit=True)
-        best_model = gs.best_estimator_
-
-        # Guardar resultados de grid
-        cv_res = pd.DataFrame(gs.cv_results_)
-        cv_res.to_csv("artifacts/gridsearch_results.csv", index=False)
-
-        # Métrica principal (usa signo negativo según scoring)
-        # Para neg_root_mean_squared_error, best_score_ ya es negativo → conviértelo a RMSE positivo
-        metrics = {
-            "cv_best_index": int(gs.best_index_),
-            "cv_best_params": {k: (None if v is None else v) for k, v in gs.best_params_.items()},
-            "cv_best_score": float(gs.best_score_),   # p.ej. neg RMSE
-            "cv_best_rmse": float(-gs.best_score_) if "neg_root_mean_squared_error" in scoring else None
-        }
-
-        # Guarda modelo y métricas
-        Path("models").mkdir(parents=True, exist_ok=True)
-        joblib.dump(best_model, "models/model.pkl")
-        with open("metrics.json", "w") as f:
-            json.dump(metrics, f, indent=2)
-
-        print(f"[grid] listo. Mejor params: {gs.best_params_}")
-        print("[save] models/model.pkl, metrics.json, artifacts/gridsearch_results.csv")
-
-    else:
-        # Entrenamiento simple sin grid
-        pipe.fit(X, y)
-        Path("models").mkdir(parents=True, exist_ok=True)
-        joblib.dump(pipe, "models/model.pkl")
-        with open("metrics.json", "w") as f:
-            json.dump({"note": "training without gridsearch"}, f, indent=2)
-        print("[train] Modelo entrenado sin grid y guardado en models/model.pkl")
+    print("RMSE:", mean_squared_error(y_test, y_pred))
+    print("MAE:", mean_absolute_error(y_test, y_pred))
+    print("R2:", r2_score(y_test, y_pred))
 
     '''
-    y_pred = model.predict(X_test)
-    print("R2:", r2_score(y_test, y_pred))
-    print("MAE:", mean_absolute_error(y_test, y_pred))
-    print("RMSE:", mean_squared_error(y_test, y_pred))
-    
-
     Path("models").mkdir(parents=True, exist_ok=True)
     import joblib
     joblib.dump(model, "models/rf_model.pkl")
