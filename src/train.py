@@ -104,22 +104,22 @@ def build_preprocessor():
     )
     return pre
 
-def run_linear_regression(X_tr, y_tr, X_te, y_te, pre):
+def run_linear_regression(X_train, y_train, X_test, y_test, pre):
     """LinearRegression no tiene hiperparámetros: un solo run."""
     exp = "LinearRegression"
     est = LinearRegression(fit_intercept=True)
     pipe = Pipeline([("prep", pre), ("est", est)])
 
     # Fit the model
-    pipe.fit(X_tr, y_tr)
+    pipe.fit(X_train, y_train)
 
     #Predicts
-    y_pred = pipe.predict(X_te)
+    y_pred = pipe.predict(X_test)
 
     # Gets metrics
-    rmse = root_mean_squared_error(y_te, y_pred)
-    mae  = mean_absolute_error(y_te, y_pred)
-    r2   = r2_score(y_te, y_pred)
+    rmse = root_mean_squared_error(y_test, y_pred)
+    mae  = mean_absolute_error(y_test, y_pred)
+    r2   = r2_score(y_test, y_pred)
     print('RMSE:', rmse)
     print('MAE:', mae)
     print('R2:', r2)
@@ -128,7 +128,7 @@ def run_linear_regression(X_tr, y_tr, X_te, y_te, pre):
 
     log_run_to_mlflow(exp, params={}, metrics=metrics, model=pipe)
 
-def run_knn_regression(X_tr, y_tr, X_te, y_te, pre):
+def run_knn_regression(X_train, y_train, X_test, y_test, pre):
     exp = "KNNRegression"
    
     k_list = [3, 5, 7, 11]
@@ -144,15 +144,15 @@ def run_knn_regression(X_tr, y_tr, X_te, y_te, pre):
                 pipe = Pipeline([("prep", pre), ("est", est)])
 
                 # Fit the model
-                pipe.fit(X_tr, y_tr)
+                pipe.fit(X_train, y_train)
 
                 #Predicts
-                y_pred = pipe.predict(X_te)
+                y_pred = pipe.predict(X_test)
 
                 # Gets metrics
-                rmse = root_mean_squared_error(y_te, y_pred)
-                mae  = mean_absolute_error(y_te, y_pred)
-                r2   = r2_score(y_te, y_pred)
+                rmse = root_mean_squared_error(y_test, y_pred)
+                mae  = mean_absolute_error(y_test, y_pred)
+                r2   = r2_score(y_test, y_pred)
                 print('RMSE:', rmse)
                 print('MAE:', mae)
                 print('R2:', r2)
