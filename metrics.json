@@ -1,0 +1,10 @@
+{
+  "cv_best_index": 14,
+  "cv_best_params": {
+    "est__regressor__max_depth": 20,
+    "est__regressor__min_samples_leaf": 2,
+    "est__regressor__n_estimators": 300
+  },
+  "cv_best_score": -6.729848415371724,
+  "cv_best_rmse": 6.729848415371724
+}

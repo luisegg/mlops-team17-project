@@ -7,10 +7,28 @@ split:
   test_size: 0.2
   random_state: 42
 
+gridsearch:
+  enabled: True
+  scoring: neg_root_mean_squared_error
+  refit: True               # refitea el mejor en TODO el dataset
+  n_jobs: -1
+  verbose: 1
+  cv:
+    kind: timeseries        # timeseries | kfold
+    n_splits: 5
+    shuffle: false          # (solo si usas kfold)
+    random_state: 42
+  param_grid:
+    # OJO: como envuelves RF en TransformedTargetRegressor dentro de la
+    # etapa 'est' del Pipeline, los hiperparámetros van como 'est__regressor__*'
+    est__regressor__n_estimators: [300, 500]
+    est__regressor__max_depth: [null, 10, 20]   # null= None
+    est__regressor__min_samples_leaf: [1, 2, 4]
+
 model:
-  n_estimators: 400
+  base: RandomForestRegressor
   random_state: 42
-  log1p_target: True
+  log1p_target: true        # aplicar log1p al target durante el entrenamiento
 
 train:
   data: data/raw/steel_energy_modified_clean.csv
