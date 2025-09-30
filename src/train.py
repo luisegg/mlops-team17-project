@@ -127,7 +127,6 @@ def main():
     split_cfg   = params.get("split", {})
     #method      = split_cfg.get("method", "time")      # 'time' o 'random'
     test_size   = split_cfg.get("test_size", 0.2)
-    random_state= split_cfg.get("random_state", 42)
 
     # 1 Loads the data
     df = pd.read_csv(data_path, parse_dates=["date"])
