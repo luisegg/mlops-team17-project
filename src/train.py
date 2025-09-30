@@ -4,12 +4,12 @@ from pathlib import Path
 import yaml
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, OrdinalEncoder
-from sklearn.compose import ColumnTransformer, TransformedTargetRegressor
+from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
-from sklearn.model_selection import GridSearchCV, TimeSeriesSplit, KFold
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, root_mean_squared_error
 from sklearn.linear_model import LinearRegression
+from sklearn.neighbors import KNeighborsRegressor
 import numpy as np
 import mlflow
 from mlflow.models import infer_signature
@@ -40,6 +40,16 @@ def load_params(path="params.yaml"):
         with open(path, "r") as f:
             return yaml.safe_load(f)
     raise FileNotFoundError("params.yaml no encontrado")
+
+def log_run_to_mlflow(experiment_name, params, metrics, model=None):
+    mlflow.set_experiment(experiment_name)
+    with mlflow.start_run():
+        if params:
+            mlflow.log_params(params)
+        for k, v in metrics.items():
+            mlflow.log_metric(k, float(v))
+        #if model is not None:
+            #mlflow.sklearn.log_model(model, "model")
 
 def split_train_test_data(df, test_size):
     # Separates X/y
@@ -94,34 +104,69 @@ def build_preprocessor():
     )
     return pre
 
-def build_rf_model(params):
+def run_linear_regression(X_tr, y_tr, X_te, y_te, pre):
+    """LinearRegression no tiene hiperparámetros: un solo run."""
+    exp = "LinearRegression"
+    est = LinearRegression(fit_intercept=True)
+    pipe = Pipeline([("prep", pre), ("est", est)])
 
-    rf = RandomForestRegressor(
-        n_estimators=params.get("model", {}).get("n_estimators", 400),
-        random_state=params.get("model", {}).get("random_state", 42),
-        n_jobs=-1
-    )
-    # Opción: log1p al target
-    if params.get("model", {}).get("log1p_target", True):
-        return TransformedTargetRegressor(regressor=rf, func=np.log1p, inverse_func=np.expm1)
-    return rf
+    # Fit the model
+    pipe.fit(X_tr, y_tr)
 
-def build_cv(cfg):
-    cv_cfg = cfg.get("cv", {}) if cfg else {}
-    kind = str(cv_cfg.get("kind", "timeseries")).lower()
-    n_splits = int(cv_cfg.get("n_splits", 5))
-    if kind == "timeseries":
-        return TimeSeriesSplit(n_splits=n_splits)
-    # kfold por si quieres aleatorio
-    shuffle = bool(cv_cfg.get("shuffle", True))
-    rs = cv_cfg.get("random_state", 42)
-    return KFold(n_splits=n_splits, shuffle=shuffle, random_state=rs)
+    #Predicts
+    y_pred = pipe.predict(X_te)
 
-def build_glr_model():
-    return LinearRegression(fit_intercept=False)
+    # Gets metrics
+    rmse = root_mean_squared_error(y_te, y_pred)
+    mae  = mean_absolute_error(y_te, y_pred)
+    r2   = r2_score(y_te, y_pred)
+    print('RMSE:', rmse)
+    print('MAE:', mae)
+    print('R2:', r2)
+
+    metrics = {"RMSE" : rmse, "MAE": mae, "R2": r2}
+
+    log_run_to_mlflow(exp, params={}, metrics=metrics, model=pipe)
+
+def run_knn_regression(X_tr, y_tr, X_te, y_te, pre):
+    exp = "KNNRegression"
+   
+    k_list = [3, 5, 7, 11]
+    weights_list = ["uniform", "distance"]
+    p_list = [1, 2]            # 1=Manhattan, 2=Euclidiana
+    metric = "minkowski"
+
+    for k in k_list:
+        for w in weights_list:
+            for p in p_list:
+                params = {"n_neighbors": k, "weights": w, "metric": metric, "p": p}
+                est = KNeighborsRegressor(**params)
+                pipe = Pipeline([("prep", pre), ("est", est)])
+
+                # Fit the model
+                pipe.fit(X_tr, y_tr)
+
+                #Predicts
+                y_pred = pipe.predict(X_te)
+
+                # Gets metrics
+                rmse = root_mean_squared_error(y_te, y_pred)
+                mae  = mean_absolute_error(y_te, y_pred)
+                r2   = r2_score(y_te, y_pred)
+                print('RMSE:', rmse)
+                print('MAE:', mae)
+                print('R2:', r2)
+
+                metrics = {"RMSE" : rmse, "MAE": mae, "R2": r2}
+
+                log_run_to_mlflow(exp, params=params, metrics=metrics, model=pipe)
+
 
 
 def main():
+
+    mlflow.set_tracking_uri(uri=mlflow_tracking_uri)
+
     params = load_params()
     data_path   = params["preprocess"]["output"]
     split_cfg   = params.get("split", {})
@@ -136,56 +181,11 @@ def main():
 
     pre = build_preprocessor()
 
-    # Configure MLflow tracking URI from env (already set above)
-    if mlflow_tracking_uri:
-        mlflow.set_tracking_uri(uri=mlflow_tracking_uri)
+    #run_linear_regression(X_train, y_train, X_test, y_test, pre)
+    run_knn_regression(X_train, y_train, X_test, y_test, pre)
 
-    models = ['glr']
-    for model in models:
-        with mlflow.start_run():            
-            mlflow.set_experiment('Linear Regression')
 
-            #est = build_rf_model(params)
-            # Builds the model
-            est = build_glr_model()
 
-            # Creates a pipeline
-            pipe = Pipeline([('prep', pre), ('est', est)])
-
-            # Fit the model
-            pipe.fit(X_train, y_train)
-
-            #Predicts
-            y_pred = pipe.predict(X_test)
-
-            '''
-            signature = infer_signature(X_train, y_train)
-
-            model_info = mlflow.sklearn.log_model(
-                sk_model = est,
-                artifact_path='glr_model',
-                signature = signature,
-                input_example = X_train,
-                #registered_model_name = 'Linear Regression'
-            )
-            '''
-
-            # Calculates a logs metrics
-            RMSE = mean_squared_error(y_test, y_pred)
-            MAE  = mean_absolute_error(y_test, y_pred)
-            R2   = r2_score(y_test, y_pred)
-            mlflow.log_metric('RMSE', RMSE)
-            mlflow.log_metric('MAE', MAE)
-            mlflow.log_metric('R2', R2)
-            print('RMSE:', RMSE)
-            print('MAE:', MAE)
-            print('R2:', R2)
-
-    '''
-    Path("models").mkdir(parents=True, exist_ok=True)
-    import joblib
-    joblib.dump(model, "models/rf_model.pkl")
-    '''
 
 if __name__ == "__main__":
     main()
