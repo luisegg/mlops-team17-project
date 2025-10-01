@@ -52,6 +52,35 @@ def log_run_to_mlflow(experiment_name, params, metrics, model=None):
         #if model is not None:
             #mlflow.sklearn.log_model(model, "model")
 
+def calculate_metrics(y_true, y_pred):
+    """
+    Calculate RMSE, MAE, and R2 metrics for regression models.
+    Also prints the metrics to console.
+    
+    Args:
+        y_true: True values
+        y_pred: Predicted values
+        
+    Returns:
+        dict: Dictionary containing RMSE, MAE, and R2 metrics
+    """
+    rmse = root_mean_squared_error(y_true, y_pred)
+    mae = mean_absolute_error(y_true, y_pred)
+    r2 = r2_score(y_true, y_pred)
+    cv = cv_percent(y_true, y_pred)
+    
+    # Print metrics
+    #print('RMSE:', rmse)
+    #print('MAE:', mae)
+    #print('R2:', r2)
+    #print('CV', cv)
+    
+    return {"RMSE": rmse, "MAE": mae, "R2": r2, "CV": cv}
+
+def cv_percent(y_true, y_pred):
+    rmse = root_mean_squared_error(y_true, y_pred)
+    return 100.0 * rmse / np.mean(y_true)
+
 def split_train_test_data(df, test_size):
     # Separates X/y
     y = df[TARGET].copy()
@@ -118,14 +147,7 @@ def run_linear_regression(X_train, y_train, X_test, y_test, pre):
     y_pred = pipe.predict(X_test)
 
     # Gets metrics
-    rmse = root_mean_squared_error(y_test, y_pred)
-    mae  = mean_absolute_error(y_test, y_pred)
-    r2   = r2_score(y_test, y_pred)
-    print('RMSE:', rmse)
-    print('MAE:', mae)
-    print('R2:', r2)
-
-    metrics = {"RMSE" : rmse, "MAE": mae, "R2": r2}
+    metrics = calculate_metrics(y_test, y_pred)
 
     log_run_to_mlflow(exp, params={}, metrics=metrics, model=pipe)
 
@@ -151,14 +173,7 @@ def run_knn_regression(X_train, y_train, X_test, y_test, pre):
                 y_pred = pipe.predict(X_test)
 
                 # Gets metrics
-                rmse = root_mean_squared_error(y_test, y_pred)
-                mae  = mean_absolute_error(y_test, y_pred)
-                r2   = r2_score(y_test, y_pred)
-                print('RMSE:', rmse)
-                print('MAE:', mae)
-                print('R2:', r2)
-
-                metrics = {"RMSE" : rmse, "MAE": mae, "R2": r2}
+                metrics = calculate_metrics(y_test, y_pred)
 
                 log_run_to_mlflow(exp, params=params, metrics=metrics, model=pipe)
 
@@ -191,13 +206,9 @@ def run_cart_regression(X_train, y_train, X_test, y_test, pre):
                     # Predice
                     y_pred = pipe.predict(X_test)
 
-                    # Métricas (RMSE real: squared=False)
-                    rmse = root_mean_squared_error(y_test, y_pred)
-                    mae  = mean_absolute_error(y_test, y_pred)
-                    r2   = r2_score(y_test, y_pred)
-                    print(f"[CART] {params} -> RMSE={rmse:.3f} MAE={mae:.3f} R2={r2:.3f}")
-
-                    metrics = {"RMSE": rmse, "MAE": mae, "R2": r2}
+                    # Métricas
+                    metrics = calculate_metrics(y_test, y_pred)
+                    print(f"[CART] {params} -> RMSE={metrics['RMSE']:.3f} MAE={metrics['MAE']:.3f} R2={metrics['R2']:.3f}")
                     log_run_to_mlflow(exp, params=params, metrics=metrics, model=None)
 
 def run_cart_regression2(X_train, y_train, X_test, y_test, pre):
@@ -214,19 +225,15 @@ def run_cart_regression2(X_train, y_train, X_test, y_test, pre):
         pipe.fit(X_train, y_train)
         y_pred = pipe.predict(X_test)
 
-        # RMSE compatible con cualquier versión de sklearn
-        rmse = float(root_mean_squared_error(y_test, y_pred))
-        mae  = float(mean_absolute_error(y_test, y_pred))
-        r2   = float(r2_score(y_test, y_pred))
-
+        # Calculate metrics
+        metrics = calculate_metrics(y_test, y_pred)
         params  = {"ccp_alpha": float(alpha), "random_state": 42}
-        metrics = {"RMSE": rmse, "MAE": mae, "R2": r2}
 
         # Reutiliza tu helper de MLflow
         log_run_to_mlflow(experiment_name=exp,
                           params=params, metrics=metrics, model=None)
 
-        print(f"[CART] ccp_alpha={alpha:.6g} -> RMSE={rmse:.3f} MAE={mae:.3f} R2={r2:.3f}")
+        print(f"[CART] ccp_alpha={alpha:.6g} -> RMSE={metrics['RMSE']:.3f} MAE={metrics['MAE']:.3f} R2={metrics['R2']:.3f} CV={metrics['CV']:.3f}")
 
 
 def main():
