@@ -2,3 +2,4 @@
 mlruns/*
 models/*
 artifacts/*
+.python-version

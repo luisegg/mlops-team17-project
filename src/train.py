@@ -11,6 +11,7 @@ from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, r
 from sklearn.linear_model import LinearRegression
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.tree import DecisionTreeRegressor
+from cubist import Cubist
 import numpy as np
 import mlflow
 from mlflow.models import infer_signature
@@ -151,12 +152,12 @@ def run_linear_regression(X_train, y_train, X_test, y_test, pre):
 
     log_run_to_mlflow(exp, params={}, metrics=metrics, model=pipe)
 
-def run_knn_regression(X_train, y_train, X_test, y_test, pre):
+def run_knn_regression(X_train, y_train, X_test, y_test, pre, knn_params):
     exp = "KNNRegression"
    
-    k_list = [3, 5, 7, 11]
-    weights_list = ["uniform", "distance"]
-    p_list = [1, 2]            # 1=Manhattan, 2=Euclidiana
+    k_list = knn_params.get("k", [3, 5, 7, 11])
+    weights_list = knn_params.get("weights", ["uniform", "distance"])
+    p_list = knn_params.get("p", [1, 2])
     metric = "minkowski"
 
     for k in k_list:
@@ -211,11 +212,11 @@ def run_cart_regression(X_train, y_train, X_test, y_test, pre):
                     print(f"[CART] {params} -> RMSE={metrics['RMSE']:.3f} MAE={metrics['MAE']:.3f} R2={metrics['R2']:.3f}")
                     log_run_to_mlflow(exp, params=params, metrics=metrics, model=None)
 
-def run_cart_regression2(X_train, y_train, X_test, y_test, pre):
+def run_cart_regression2(X_train, y_train, X_test, y_test, pre, cart_params):
     exp = "CARTRegression"
 
     # --- 1) candidates de ccp_alpha ---
-    alphas = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+    alphas = cart_params.get("ccp_alpha", [0.0, 0.1, 0.2, 0.3, 0.4, 0.5])
 
     # --- 2) probar cada alpha ---
     for alpha in alphas:
@@ -265,6 +266,34 @@ def run_random_forest_regression(X_train, y_train, X_test, y_test, pre):
     # Registra en MLflow
     log_run_to_mlflow(exp, params=params, metrics=metrics, model=pipe) 
 
+def run_cubist_regression(X_train, y_train, X_test, y_test, pre, cubist_params):
+    exp = "CubistRegression"
+
+    n_committees_list = cubist_params.get("n_committees", [1, 5, 10, 20])
+    n_rules_list = cubist_params.get("n_rules", [10, 50, 100])
+
+    for n_committees in n_committees_list:
+        for n_rules in n_rules_list:
+            params = {
+                "n_committees": n_committees,
+                "n_rules": n_rules,
+            }
+
+            est = Cubist(**params)
+            pipe = Pipeline([("prep", pre), ("est", est)])
+
+            # Entrena
+            pipe.fit(X_train, y_train)
+
+            # Predice
+            y_pred = pipe.predict(X_test)
+
+            # Métricas
+            metrics = calculate_metrics(y_test, y_pred)
+            print(f"[Cubist] {params} -> RMSE={metrics['RMSE']:.3f} MAE={metrics['MAE']:.3f} R2={metrics['R2']:.3f}")
+            log_run_to_mlflow(exp, params=params, metrics=metrics, model=None)
+
+
 def main():
 
     mlflow.set_tracking_uri(uri=mlflow_tracking_uri)
@@ -272,8 +301,10 @@ def main():
     params = load_params()
     data_path   = params["preprocess"]["output"]
     split_cfg   = params.get("split", {})
+    train_cfg = params.get("train", {})
     #method      = split_cfg.get("method", "time")      # 'time' o 'random'
     test_size   = split_cfg.get("test_size", 0.2)
+    model_to_run = train_cfg.get("model_to_run", "Cubist")
 
     # 1 Loads the data
     df = pd.read_csv(data_path, parse_dates=["date"])
@@ -283,11 +314,19 @@ def main():
 
     pre = build_preprocessor()
 
-    #run_linear_regression(X_train, y_train, X_test, y_test, pre)
-    #run_knn_regression(X_train, y_train, X_test, y_test, pre)
-    #run_cart_regression(X_train, y_train, X_test, y_test, pre)
-    #run_cart_regression2(X_train, y_train, X_test, y_test, pre)
-    run_random_forest_regression(X_train, y_train, X_test, y_test, pre)
+    if model_to_run == "LinearRegression":
+        run_linear_regression(X_train, y_train, X_test, y_test, pre)
+    elif model_to_run == "KNN":
+        knn_params = params.get("knn", {})
+        run_knn_regression(X_train, y_train, X_test, y_test, pre, knn_params)
+    elif model_to_run == "CART":
+        cart_params = params.get("cart", {})
+        run_cart_regression2(X_train, y_train, X_test, y_test, pre, cart_params)
+    elif model_to_run == "Cubist":
+        cubist_params = params.get("cubist", {})
+        run_cubist_regression(X_train, y_train, X_test, y_test, pre, cubist_params)
+    elif model_to_run == "RandomForest":
+        run_random_forest_regression(X_train, y_train, X_test, y_test, pre)
 
 
 
