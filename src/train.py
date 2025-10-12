@@ -236,6 +236,35 @@ def run_cart_regression2(X_train, y_train, X_test, y_test, pre, cart_params):
 
         print(f"[CART] ccp_alpha={alpha:.6g} -> RMSE={metrics['RMSE']:.3f} MAE={metrics['MAE']:.3f} R2={metrics['R2']:.3f} CV={metrics['CV']:.3f}")
 
+def run_random_forest_regression(X_train, y_train, X_test, y_test, pre):
+    exp = "RandomForestRegression"
+
+    params = {
+        "n_estimators": 100,           # Número de árboles
+        "criterion": "squared_error",  
+        "max_depth": 10,                # Profundidad máxima de los árboles
+        "min_samples_split": 2,        # Mínimo de muestras para dividir un nodo
+        "random_state": 42,
+        "n_jobs": -1                   # Usa todos los núcleos
+    }
+
+    est = RandomForestRegressor(**params)
+    pipe = Pipeline([("prep", pre), ("est", est)])
+
+    # Entrena el modelo
+    pipe.fit(X_train, y_train)
+
+    # Predicciones
+    y_pred = pipe.predict(X_test)
+
+    # Calcula métricas
+    metrics = calculate_metrics(y_test, y_pred)
+
+    # Muestra resultados por consola
+    print(f"[RandomForest] RMSE={metrics['RMSE']:.3f}, MAE={metrics['MAE']:.3f}, R2={metrics['R2']:.3f}")
+
+    # Registra en MLflow
+    log_run_to_mlflow(exp, params=params, metrics=metrics, model=pipe) 
 
 def run_cubist_regression(X_train, y_train, X_test, y_test, pre, cubist_params):
     exp = "CubistRegression"
@@ -296,6 +325,8 @@ def main():
     elif model_to_run == "Cubist":
         cubist_params = params.get("cubist", {})
         run_cubist_regression(X_train, y_train, X_test, y_test, pre, cubist_params)
+    elif model_to_run == "RandomForest":
+        run_random_forest_regression(X_train, y_train, X_test, y_test, pre)
 
 
 
