@@ -22,174 +22,31 @@ from dotenv import load_dotenv
 
 TARGET = "Usage_kWh"
 
-# Model configurations
+# Model configurations - will be loaded from params.yaml
 MODEL_CONFIGS = {
     "LinearRegression": {
         "name": "LinearRegression",
         "estimator": LinearRegression,
-        "params": [{"fit_intercept": True}, {"fit_intercept": False}],
         "experiment_name": "LinearRegression"
     },
     "KNN": {
         "name": "KNNRegression",
         "estimator": KNeighborsRegressor,
-        "params": [
-            {"n_neighbors": 3, "weights": "uniform", "p": 1},
-            {"n_neighbors": 5, "weights": "distance", "p": 2},
-            {"n_neighbors": 7, "weights": "uniform", "p": 2},
-            {"n_neighbors": 11, "weights": "distance", "p": 1}
-        ],
         "experiment_name": "KNNRegression"
     },
     "CART": {
         "name": "CARTRegression",
         "estimator": DecisionTreeRegressor,
-        "params": [
-            {"ccp_alpha": 0.0, "random_state": 42},
-            {"ccp_alpha": 0.1, "random_state": 42},
-            {"ccp_alpha": 0.2, "random_state": 42},
-            {"ccp_alpha": 0.3, "random_state": 42},
-            {"ccp_alpha": 0.4, "random_state": 42},
-            {"ccp_alpha": 0.5, "random_state": 42}
-        ],
         "experiment_name": "CARTRegression"
     },
     "RandomForest": {
         "name": "RandomForestRegression",
         "estimator": RandomForestRegressor,
-        "params": [
-            # Configuración básica
-            {
-                "n_estimators": 100,
-                "criterion": "squared_error",
-                "max_depth": 10,
-                "min_samples_split": 2,
-                "min_samples_leaf": 1,
-                "max_features": "sqrt",
-                "bootstrap": True,
-                "random_state": 42,
-                "n_jobs": -1
-            },
-            # Configuración conservadora (menos overfitting)
-            {
-                "n_estimators": 200,
-                "criterion": "squared_error",
-                "max_depth": 8,
-                "min_samples_split": 5,
-                "min_samples_leaf": 2,
-                "max_features": "sqrt",
-                "bootstrap": True,
-                "random_state": 42,
-                "n_jobs": -1
-            },
-            # Configuración agresiva (más árboles)
-            {
-                "n_estimators": 300,
-                "criterion": "squared_error",
-                "max_depth": 15,
-                "min_samples_split": 2,
-                "min_samples_leaf": 1,
-                "max_features": "log2",
-                "bootstrap": True,
-                "random_state": 42,
-                "n_jobs": -1
-            },
-            # Configuración con mayor profundidad
-            {
-                "n_estimators": 150,
-                "criterion": "squared_error",
-                "max_depth": 20,
-                "min_samples_split": 3,
-                "min_samples_leaf": 1,
-                "max_features": "sqrt",
-                "bootstrap": True,
-                "random_state": 42,
-                "n_jobs": -1
-            },
-            # Configuración con menos features por split
-            {
-                "n_estimators": 250,
-                "criterion": "squared_error",
-                "max_depth": 12,
-                "min_samples_split": 4,
-                "min_samples_leaf": 2,
-                "max_features": "log2",
-                "bootstrap": True,
-                "random_state": 42,
-                "n_jobs": -1
-            },
-            # Configuración con más muestras requeridas para split
-            {
-                "n_estimators": 180,
-                "criterion": "squared_error",
-                "max_depth": 10,
-                "min_samples_split": 10,
-                "min_samples_leaf": 3,
-                "max_features": "sqrt",
-                "bootstrap": True,
-                "random_state": 42,
-                "n_jobs": -1
-            },
-            # Configuración con bootstrap=False
-            {
-                "n_estimators": 200,
-                "criterion": "squared_error",
-                "max_depth": 12,
-                "min_samples_split": 2,
-                "min_samples_leaf": 1,
-                "max_features": "sqrt",
-                "bootstrap": False,
-                "random_state": 42,
-                "n_jobs": -1
-            },
-            # Configuración con todas las features
-            {
-                "n_estimators": 150,
-                "criterion": "squared_error",
-                "max_depth": 8,
-                "min_samples_split": 5,
-                "min_samples_leaf": 2,
-                "max_features": None,
-                "bootstrap": True,
-                "random_state": 42,
-                "n_jobs": -1
-            },
-            # Configuración con criterion="absolute_error"
-            {
-                "n_estimators": 200,
-                "criterion": "absolute_error",
-                "max_depth": 10,
-                "min_samples_split": 2,
-                "min_samples_leaf": 1,
-                "max_features": "sqrt",
-                "bootstrap": True,
-                "random_state": 42,
-                "n_jobs": -1
-            },
-            # Configuración balanceada final
-            {
-                "n_estimators": 300,
-                "criterion": "squared_error",
-                "max_depth": 12,
-                "min_samples_split": 3,
-                "min_samples_leaf": 1,
-                "max_features": "sqrt",
-                "bootstrap": True,
-                "random_state": 42,
-                "n_jobs": -1
-            }
-        ],
         "experiment_name": "RandomForestRegression"
     },
     "Cubist": {
         "name": "CubistRegression",
         "estimator": Cubist,
-        "params": [
-            {"n_committees": 1, "n_rules": 10},
-            {"n_committees": 5, "n_rules": 50},
-            {"n_committees": 10, "n_rules": 100},
-            {"n_committees": 20, "n_rules": 10}
-        ],
         "experiment_name": "CubistRegression"
     }
 }
@@ -209,11 +66,197 @@ os.environ['MLFLOW_TRACKING_URI'] = mlflow_tracking_uri
 os.environ['MLFLOW_TRACKING_USERNAME'] = mlflow_tracking_username
 os.environ['MLFLOW_TRACKING_PASSWORD'] = mlflow_tracking_password
 
-def load_params(path="params.yaml"):
-    if Path(path).exists():
-        with open(path, "r") as f:
-            return yaml.safe_load(f)
-    raise FileNotFoundError("params.yaml no encontrado")
+class HyperparameterManager:
+    """
+    Class to manage hyperparameter configurations and generate parameter combinations.
+    """
+    
+    def __init__(self, params_path="params.yaml"):
+        """
+        Initialize the HyperparameterManager.
+        
+        Args:
+            params_path (str): Path to the parameters YAML file
+        """
+        self.params_path = params_path
+        self.params = self.load_params()
+    
+    def load_params(self):
+        """
+        Load parameters from YAML file.
+        
+        Returns:
+            dict: Parameters dictionary
+        """
+        if Path(self.params_path).exists():
+            with open(self.params_path, "r") as f:
+                return yaml.safe_load(f)
+        raise FileNotFoundError(f"{self.params_path} not found")
+    
+    def generate_param_combinations(self, model_name):
+        """
+        Generate parameter combinations for a model from params.yaml.
+        
+        Args:
+            model_name (str): Name of the model
+            
+        Returns:
+            list: List of parameter dictionaries
+        """
+        import itertools
+        
+        if model_name == "LinearRegression":
+            linear_params = self.params.get("linear_regression", {})
+            fit_intercept_options = linear_params.get("fit_intercept", [True, False])
+            return [{"fit_intercept": option} for option in fit_intercept_options]
+        
+        elif model_name == "KNN":
+            knn_params = self.params.get("knn", {})
+            k_values = knn_params.get("k", [3, 5, 7, 11])
+            weights_options = knn_params.get("weights", ["uniform", "distance"])
+            p_values = knn_params.get("p", [1, 2])
+            
+            combinations = []
+            for k in k_values:
+                for weights in weights_options:
+                    for p in p_values:
+                        combinations.append({
+                            "n_neighbors": k,
+                            "weights": weights,
+                            "p": p
+                        })
+            return combinations
+        
+        elif model_name == "CART":
+            cart_params = self.params.get("cart", {})
+            
+            # Get parameter ranges
+            ccp_alpha = cart_params.get("ccp_alpha", [0.0, 0.1])
+            max_depth = cart_params.get("max_depth", [5, 10])
+            min_samples_split = cart_params.get("min_samples_split", [2, 5])
+            min_samples_leaf = cart_params.get("min_samples_leaf", [1, 2])
+            max_features = cart_params.get("max_features", ["sqrt"])
+            criterion = cart_params.get("criterion", ["squared_error"])
+            
+            # Generate combinations
+            combinations = []
+            for ccp in ccp_alpha:
+                for max_d in max_depth:
+                    for min_split in min_samples_split:
+                        for min_leaf in min_samples_leaf:
+                            for max_feat in max_features:
+                                for crit in criterion:
+                                    combinations.append({
+                                        "ccp_alpha": ccp,
+                                        "max_depth": max_d,
+                                        "min_samples_split": min_split,
+                                        "min_samples_leaf": min_leaf,
+                                        "max_features": max_feat,
+                                        "criterion": crit,
+                                        "random_state": 42
+                                    })
+            return combinations
+        
+        elif model_name == "RandomForest":
+            rf_params = self.params.get("random_forest", {})
+            
+            # Get parameter ranges
+            n_estimators = rf_params.get("n_estimators", [100, 200])
+            max_depth = rf_params.get("max_depth", [10, 15])
+            min_samples_split = rf_params.get("min_samples_split", [2, 5])
+            min_samples_leaf = rf_params.get("min_samples_leaf", [1, 2])
+            max_features = rf_params.get("max_features", ["sqrt"])
+            criterion = rf_params.get("criterion", ["squared_error"])
+            bootstrap = rf_params.get("bootstrap", [True])
+            
+            # Generate combinations
+            combinations = []
+            for n_est in n_estimators:
+                for max_d in max_depth:
+                    for min_split in min_samples_split:
+                        for min_leaf in min_samples_leaf:
+                            for max_feat in max_features:
+                                for crit in criterion:
+                                    for boot in bootstrap:
+                                        combinations.append({
+                                            "n_estimators": n_est,
+                                            "max_depth": max_d,
+                                            "min_samples_split": min_split,
+                                            "min_samples_leaf": min_leaf,
+                                            "max_features": max_feat,
+                                            "criterion": crit,
+                                            "bootstrap": boot,
+                                            "random_state": 42,
+                                            "n_jobs": -1
+                                        })
+            return combinations
+        
+        elif model_name == "Cubist":
+            cubist_params = self.params.get("cubist", {})
+            n_committees = cubist_params.get("n_committees", [1, 5, 10, 20])
+            n_rules = cubist_params.get("n_rules", [10, 50, 100])
+            
+            combinations = []
+            for n_comm in n_committees:
+                for n_rule in n_rules:
+                    combinations.append({
+                        "n_committees": n_comm,
+                        "n_rules": n_rule
+                    })
+            return combinations
+        
+        else:
+            return [{}]  # Default empty parameters
+    
+    def get_model_config(self, model_name):
+        """
+        Get model configuration by name with parameters from params.yaml.
+        
+        Args:
+            model_name (str): Name of the model
+            
+        Returns:
+            dict: Model configuration with generated parameters
+        """
+        if model_name not in MODEL_CONFIGS:
+            raise ValueError(f"Model '{model_name}' not found in MODEL_CONFIGS")
+        
+        config = MODEL_CONFIGS[model_name].copy()
+        config["params"] = self.generate_param_combinations(model_name)
+        return config
+    
+    def get_total_combinations(self, model_name):
+        """
+        Get the total number of parameter combinations for a model.
+        
+        Args:
+            model_name (str): Name of the model
+            
+        Returns:
+            int: Number of parameter combinations
+        """
+        return len(self.generate_param_combinations(model_name))
+    
+    def print_combinations_summary(self, models_to_run):
+        """
+        Print a summary of parameter combinations for all models.
+        
+        Args:
+            models_to_run (list): List of model names to run
+        """
+        print(f"\n{'='*60}")
+        print("HYPERPARAMETER COMBINATIONS SUMMARY")
+        print(f"{'='*60}")
+        
+        total_combinations = 0
+        for model_name in models_to_run:
+            combinations = self.get_total_combinations(model_name)
+            total_combinations += combinations
+            print(f"{model_name:15}: {combinations:3d} combinations")
+        
+        print(f"{'='*60}")
+        print(f"{'TOTAL':15}: {total_combinations:3d} combinations")
+        print(f"{'='*60}")
 
 
 '''
@@ -352,6 +395,8 @@ class MetricsCalculator:
         
         print(f"{'='*60}")
 
+
+'''
 # Legacy functions for backward compatibility
 def calculate_metrics(y_true, y_pred):
     """Legacy function - use MetricsCalculator.calculate_metrics() instead."""
@@ -362,6 +407,7 @@ def cv_percent(y_true, y_pred):
     """Legacy function - use MetricsCalculator.calculate_cv_percent() instead."""
     calculator = MetricsCalculator()
     return calculator.calculate_cv_percent(y_true, y_pred)
+'''
 
 class DataSplitter:
     """Class responsible for splitting data into train and test sets."""
@@ -655,20 +701,18 @@ class ModelTrainer:
         
         return pipeline, metrics
     
-    def get_model_config(self, model_name):
+    def get_model_config(self, model_name, hyperparameter_manager):
         """
-        Get model configuration by name.
+        Get model configuration by name with parameters from HyperparameterManager.
         
         Args:
             model_name (str): Name of the model
+            hyperparameter_manager (HyperparameterManager): Manager for hyperparameters
             
         Returns:
-            dict: Model configuration
+            dict: Model configuration with generated parameters
         """
-        if model_name not in MODEL_CONFIGS:
-            raise ValueError(f"Model '{model_name}' not found in MODEL_CONFIGS")
-        
-        return MODEL_CONFIGS[model_name]
+        return hyperparameter_manager.get_model_config(model_name)
 
 
 '''
@@ -905,7 +949,9 @@ def main():
 
     mlflow.set_tracking_uri(uri=mlflow_tracking_uri)
 
-    params = load_params()
+    # Initialize hyperparameter manager
+    hyperparameter_manager = HyperparameterManager()
+    params = hyperparameter_manager.params
     data_path = params["preprocess"]["output"]
     split_cfg = params.get("split", {})
     train_cfg = params.get("train", {})
@@ -913,6 +959,9 @@ def main():
     
     # Get list of models to run (default: all models)
     models_to_run = train_cfg.get("models_to_run", list(MODEL_CONFIGS.keys()))
+    
+    # Print combinations summary
+    hyperparameter_manager.print_combinations_summary(models_to_run)
     
     # 1 Load the data
     df = pd.read_csv(data_path, parse_dates=["date"])
@@ -950,7 +999,7 @@ def main():
             print(f"\n--- Training {model_name} ---")
             
             try:
-                model_config = model_trainer.get_model_config(model_name)
+                model_config = model_trainer.get_model_config(model_name, hyperparameter_manager)
                 
                 # Train model (this will create child experiments)
                 best_model, best_metrics = model_trainer.train_model(
