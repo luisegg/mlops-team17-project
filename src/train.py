@@ -82,25 +82,86 @@ def cv_percent(y_true, y_pred):
     rmse = root_mean_squared_error(y_true, y_pred)
     return 100.0 * rmse / np.mean(y_true)
 
-def split_train_test_data(df, test_size):
-    # Separates X/y
-    y = df[TARGET].copy()
-    X = df.drop(columns=[TARGET]).copy()
+class DataSplitter:
+    """Class responsible for splitting data into train and test sets."""
+    
+    def __init__(self, target_column="Usage_kWh"):
+        """
+        Initialize DataSplitter.
+        
+        Args:
+            target_column (str): Name of the target column
+        """
+        self.target_column = target_column
+    
+    def split_data(self, df, test_size, shuffle=False):
+        """
+        Split data into train and test sets.
+        
+        Args:
+            df (pd.DataFrame): DataFrame with data to split
+            test_size (float): Proportion of data to use for testing
+            shuffle (bool): Whether to shuffle data before splitting
+            
+        Returns:
+            tuple: (X_train, X_test, y_train, y_test)
+        """
+        # Prepare features and target
+        X, y = self.prepare_features_target(df)
+        
+        # Sort by date if not shuffling (temporal split)
+        if not shuffle:
+            X, y = self.sort_by_date(df, X, y)
+        
+        # Split with scikit-learn
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, shuffle=shuffle
+        )
+        
+        # Print split information
+        print(f"[split] test_size={test_size}")
+        print(f"[split] X_train: {X_train.shape} | X_test: {X_test.shape}")
+        print(f"[split] y_train: {y_train.shape} | y_test: {y_test.shape}")
+        
+        return X_train, X_test, y_train, y_test
+    
+    def prepare_features_target(self, df):
+        """
+        Separate features and target from DataFrame.
+        
+        Args:
+            df (pd.DataFrame): DataFrame with features and target
+            
+        Returns:
+            tuple: (X, y) where X is features and y is target
+        """
+        y = df[self.target_column].copy()
+        X = df.drop(columns=[self.target_column]).copy()
+        
+        return X, y
+    
+    def sort_by_date(self, df, X, y):
+        """
+        Sort features and target by date column.
+        
+        Args:
+            df (pd.DataFrame): Original DataFrame with date column
+            X (pd.DataFrame): Features DataFrame
+            y (pd.Series): Target Series
+            
+        Returns:
+            tuple: (X_sorted, y_sorted)
+        """
+        # Get sort order based on date column
+        order = df["date"].argsort()
+        
+        # Sort both features and target using the same order
+        X_sorted = X.iloc[order]
+        y_sorted = y.iloc[order]
+        
+        return X_sorted, y_sorted
 
-    # Split with scikit-learn
-    # order by date and NO shuffle (temporal)
-    order = df["date"].argsort()
-    X = X.iloc[order]
-    y = y.iloc[order]
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, shuffle=False
-    )
 
-    print(f"[split] test_size={test_size}")
-    print(f"[split] X_train: {X_train.shape} | X_test: {X_test.shape}")
-    print(f"[split] y_train: {y_train.shape} | y_test: {y_test.shape}")
-
-    return X_train, X_test, y_train, y_test
 
 def build_preprocessor():
     pre = ColumnTransformer(
@@ -370,7 +431,8 @@ def main():
     df = pd.read_csv(data_path, parse_dates=["date"])
 
     # 2 Splits the data
-    X_train, X_test, y_train, y_test = split_train_test_data(df=df, test_size=test_size)
+    data_splitter = DataSplitter(target_column=TARGET)
+    X_train, X_test, y_train, y_test = data_splitter.split_data(df=df, test_size=test_size)
 
     pre = build_preprocessor()
 
