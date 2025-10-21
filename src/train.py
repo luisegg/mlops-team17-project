@@ -282,19 +282,20 @@ class MetricsCalculator:
         """
         Calculate RMSE, MAE, R2, and CV metrics for regression models.
     
-    Args:
-        y_true: True values
-        y_pred: Predicted values
-        
-    Returns:
-            dict: Dictionary containing RMSE, MAE, R2, and CV metrics
-    """
+        Args:
+            y_true: True values
+            y_pred: Predicted values
+            
+        Returns:
+                dict: Dictionary containing RMSE, MAE, R2, and CV metrics
+        """
         rmse = root_mean_squared_error(y_true, y_pred)
         mae = mean_absolute_error(y_true, y_pred)
         r2 = r2_score(y_true, y_pred)
         cv = self.calculate_cv_percent(y_true, y_pred)
-        
-        return {"RMSE": rmse, "MAE": mae, "R2": r2, "CV": cv}
+            
+        metrics = {"RMSE": rmse, "MAE": mae, "R2": r2, "CV": cv}
+        return metrics
     
     def calculate_cv_percent(self, y_true, y_pred):
         """
@@ -439,17 +440,17 @@ class DataSplitter:
         # Sort by date if not shuffling (temporal split)
         if not shuffle:
             X, y = self.sort_by_date(df, X, y)
-        
+
         # Split with scikit-learn
         X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=test_size, shuffle=shuffle
+                X, y, test_size=test_size, shuffle=shuffle
         )
-        
-        # Print split information
+
+            # Print split information
         print(f"[split] test_size={test_size}")
         print(f"[split] X_train: {X_train.shape} | X_test: {X_test.shape}")
         print(f"[split] y_train: {y_train.shape} | y_test: {y_test.shape}")
-        
+
         return X_train, X_test, y_train, y_test
 
     def prepare_features_target(self, df):
@@ -605,16 +606,14 @@ class FeaturePreprocessor:
 class ModelTrainer:
     """Class responsible for training different ML models using configuration."""
     
-    def __init__(self, metrics_calculator=None, mlflow_logger=None):
+    def __init__(self, metrics_calculator=None):
         """
         Initialize ModelTrainer with dependencies.
         
         Args:
             metrics_calculator: Instance of MetricsCalculator
-            mlflow_logger: Instance of MLflowLogger
         """
         self.metrics_calculator = metrics_calculator or MetricsCalculator()
-        self.mlflow_logger = mlflow_logger
     
     def train_model(self, model_config, X_train, y_train, X_test, y_test, preprocessor):
         """
@@ -683,21 +682,12 @@ class ModelTrainer:
         # Calculate metrics
         metrics = self.metrics_calculator.calculate_metrics(y_test, y_pred)
         
-        # Log to MLflow (use current experiment context)
-        if self.mlflow_logger:
-            self.mlflow_logger.log_experiment(
-                experiment_name=experiment_name,
-                params=params,
-                metrics=metrics,
-                model=pipeline
-            )
-        else:
-            # Use nested runs within the parent experiment
-            with mlflow.start_run(run_name=f"{experiment_name}_{params}", nested=True):
-                mlflow.log_params(params)
-                for k, v in metrics.items():
-                    mlflow.log_metric(k, float(v))
-                # mlflow.sklearn.log_model(pipeline, "model")
+        # Use nested runs within the parent experiment
+        with mlflow.start_run(run_name=f"{experiment_name}_{params}", nested=True):
+            mlflow.log_params(params)
+            for k, v in metrics.items():
+                mlflow.log_metric(k, float(v))
+            # mlflow.sklearn.log_model(pipeline, "model")
         
         return pipeline, metrics
     
