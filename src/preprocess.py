@@ -108,8 +108,20 @@ class Preprocessor:
         """
         df_processed = df.copy()
         
+        # Process datetime column
+        df_processed = self._process_datetime_column(df_processed)
+        
+        # Remove unnecessary columns
+        df_processed = self._remove_unnecessary_columns(df_processed)
+        
         # Clean numerical variables
         df_processed = self._clean_numerical_columns(df_processed)
+        
+        # Remove outliers
+        df_processed = self._remove_outliers(df_processed)
+        
+        # Remove corrupted data
+        df_processed = self._remove_corrupted_data(df_processed)
         
         # Clean categorical variables
         df_processed = self._clean_categorical_columns(df_processed)
@@ -123,15 +135,21 @@ class Preprocessor:
         
         return df_processed
     
-    def _clean_numerical_columns(self, df):
-        """Clean numerical columns."""
+    def _process_datetime_column(self, df):
+        """Convert 'date' column to datetime format."""
         df_clean = df.copy()
-        
-        # Convert 'date' column to datetime
         df_clean['date'] = pd.to_datetime(df['date'].str.strip(), format='%d/%m/%Y %H:%M', errors='raise')
-        
-        # Remove mixed_type_col column
+        return df_clean
+    
+    def _remove_unnecessary_columns(self, df):
+        """Remove columns that are not needed for processing."""
+        df_clean = df.copy()
         df_clean.drop(columns=['mixed_type_col'], inplace=True)
+        return df_clean
+    
+    def _clean_numerical_columns(self, df):
+        """Clean numerical columns by converting invalid values to NaN and proper data types."""
+        df_clean = df.copy()
         
         # Clean numerical columns
         for col in self.numeric_cols:
@@ -146,6 +164,12 @@ class Preprocessor:
         # Convert 'NSM' column to Int64
         df_clean['NSM'] = df_clean['NSM'].astype('Int64')
         
+        return df_clean
+    
+    def _remove_outliers(self, df):
+        """Remove outliers using IQR method."""
+        df_clean = df.copy()
+        
         # Remove outliers with different k values
         outlier_configs = [
             ('Usage_kWh', 3.0),
@@ -158,6 +182,12 @@ class Preprocessor:
         
         for col, k in outlier_configs:
             df_clean, _ = self._drop_outliers_iqr(df_clean, col, k=k)
+        
+        return df_clean
+    
+    def _remove_corrupted_data(self, df):
+        """Remove corrupted data based on domain-specific rules."""
+        df_clean = df.copy()
         
         # Filter NSM <= 86399 (seconds in a day)
         df_clean = df_clean[df_clean['NSM'] <= 86399].copy()
