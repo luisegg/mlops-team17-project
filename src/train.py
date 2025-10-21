@@ -2,7 +2,7 @@ from errno import ESTALE
 import pandas as pd
 from pathlib import Path
 import yaml
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, OrdinalEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
@@ -42,9 +42,9 @@ def load_params(path="params.yaml"):
             return yaml.safe_load(f)
     raise FileNotFoundError("params.yaml no encontrado")
 
-def log_run_to_mlflow(experiment_name, params, metrics, model=None):
+def log_run_to_mlflow(experiment_name, params, metrics, model=None, run_name=None):
     mlflow.set_experiment(experiment_name)
-    with mlflow.start_run():
+    with mlflow.start_run(run_name=run_name):
         if params:
             mlflow.log_params(params)
         for k, v in metrics.items():
@@ -235,6 +235,66 @@ def run_cart_regression2(X_train, y_train, X_test, y_test, pre):
 
         print(f"[CART] ccp_alpha={alpha:.6g} -> RMSE={metrics['RMSE']:.3f} MAE={metrics['MAE']:.3f} R2={metrics['R2']:.3f} CV={metrics['CV']:.3f}")
 
+def hyperparameter_tuning(X_train, y_train, pre, est, param_grid):
+    pipe = Pipeline([("prep", pre), ("est", est)])
+    grid_search=GridSearchCV(estimator=pipe, param_grid=param_grid, cv=3, n_jobs=-1, verbose=2,
+                             scoring="neg_mean_squared_error")
+    grid_search.fit(X_train, y_train)
+    return grid_search
+
+
+def run_linear_regression_tuning(X_train, y_train, X_test, y_test, pre):
+    param_grid = {
+        "est__fit_intercept": [True, False]
+    }
+    model = LinearRegression()
+    grid_search = hyperparameter_tuning(X_train, y_train, pre, model, param_grid)
+
+    best_model = grid_search.best_estimator_
+
+    y_pred = best_model.predict(X_test)
+
+    metrics = calculate_metrics(y_test, y_pred)
+
+    log_run_to_mlflow(experiment_name='Algorithm Comparison',
+                        params=grid_search.best_params_, metrics=metrics, model=best_model,
+                        run_name='Linear Regression')
+    return best_model
+
+def run_knn_regression_tuning(X_train, y_train, X_test, y_test, pre):
+    param_grid = {
+        "est__n_neighbors": [3, 5, 7, 11],
+        "est__weights": ["uniform", "distance"],
+        "est__metric": ["minkowski"],
+        "est__p": [1, 2]
+    }
+    model = KNeighborsRegressor()
+    grid_search = hyperparameter_tuning(X_train, y_train, pre, model, param_grid)
+    best_model = grid_search.best_estimator_
+
+    y_pred = best_model.predict(X_test)
+
+    metrics = calculate_metrics(y_test, y_pred)
+
+    log_run_to_mlflow(experiment_name='Algorithm Comparison',
+                        params=grid_search.best_params_, metrics=metrics, model=best_model,
+                        run_name='KNN Regression')
+    return best_model
+
+def run_cart_regression2_tuning(X_train, y_train, X_test, y_test, pre):
+    param_grid = {
+        "est__ccp_alpha": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+    }
+    model = DecisionTreeRegressor()
+    grid_search = hyperparameter_tuning(X_train, y_train, pre, model, param_grid)
+
+    best_model = grid_search.best_estimator_
+    y_pred = best_model.predict(X_test)
+    metrics = calculate_metrics(y_test, y_pred)
+    log_run_to_mlflow(experiment_name='Algorithm Comparison',
+                        params=grid_search.best_params_, metrics=metrics, model=best_model,
+                        run_name='CART Regression')
+    return best_model
 
 def main():
 
@@ -254,10 +314,13 @@ def main():
 
     pre = build_preprocessor()
 
-    #run_linear_regression(X_train, y_train, X_test, y_test, pre)
+    run_linear_regression(X_train, y_train, X_test, y_test, pre)
     #run_knn_regression(X_train, y_train, X_test, y_test, pre)
     #run_cart_regression(X_train, y_train, X_test, y_test, pre)
-    run_cart_regression2(X_train, y_train, X_test, y_test, pre)
+    #run_cart_regression2(X_train, y_train, X_test, y_test, pre)
+    #run_knn_regression_tuning(X_train, y_train, X_test, y_test, pre)
+    #run_linear_regression_tuning(X_train, y_train, X_test, y_test, pre)
+    #run_cart_regression2_tuning(X_train, y_train, X_test, y_test, pre)
 
 
 
