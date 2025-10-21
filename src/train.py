@@ -57,14 +57,128 @@ MODEL_CONFIGS = {
     "RandomForest": {
         "name": "RandomForestRegression",
         "estimator": RandomForestRegressor,
-        "params": [{
-            "n_estimators": 100,
-            "criterion": "squared_error",
-            "max_depth": 10,
-            "min_samples_split": 2,
-            "random_state": 42,
-            "n_jobs": -1
-        }],
+        "params": [
+            # Configuración básica
+            {
+                "n_estimators": 100,
+                "criterion": "squared_error",
+                "max_depth": 10,
+                "min_samples_split": 2,
+                "min_samples_leaf": 1,
+                "max_features": "sqrt",
+                "bootstrap": True,
+                "random_state": 42,
+                "n_jobs": -1
+            },
+            # Configuración conservadora (menos overfitting)
+            {
+                "n_estimators": 200,
+                "criterion": "squared_error",
+                "max_depth": 8,
+                "min_samples_split": 5,
+                "min_samples_leaf": 2,
+                "max_features": "sqrt",
+                "bootstrap": True,
+                "random_state": 42,
+                "n_jobs": -1
+            },
+            # Configuración agresiva (más árboles)
+            {
+                "n_estimators": 300,
+                "criterion": "squared_error",
+                "max_depth": 15,
+                "min_samples_split": 2,
+                "min_samples_leaf": 1,
+                "max_features": "log2",
+                "bootstrap": True,
+                "random_state": 42,
+                "n_jobs": -1
+            },
+            # Configuración con mayor profundidad
+            {
+                "n_estimators": 150,
+                "criterion": "squared_error",
+                "max_depth": 20,
+                "min_samples_split": 3,
+                "min_samples_leaf": 1,
+                "max_features": "sqrt",
+                "bootstrap": True,
+                "random_state": 42,
+                "n_jobs": -1
+            },
+            # Configuración con menos features por split
+            {
+                "n_estimators": 250,
+                "criterion": "squared_error",
+                "max_depth": 12,
+                "min_samples_split": 4,
+                "min_samples_leaf": 2,
+                "max_features": "log2",
+                "bootstrap": True,
+                "random_state": 42,
+                "n_jobs": -1
+            },
+            # Configuración con más muestras requeridas para split
+            {
+                "n_estimators": 180,
+                "criterion": "squared_error",
+                "max_depth": 10,
+                "min_samples_split": 10,
+                "min_samples_leaf": 3,
+                "max_features": "sqrt",
+                "bootstrap": True,
+                "random_state": 42,
+                "n_jobs": -1
+            },
+            # Configuración con bootstrap=False
+            {
+                "n_estimators": 200,
+                "criterion": "squared_error",
+                "max_depth": 12,
+                "min_samples_split": 2,
+                "min_samples_leaf": 1,
+                "max_features": "sqrt",
+                "bootstrap": False,
+                "random_state": 42,
+                "n_jobs": -1
+            },
+            # Configuración con todas las features
+            {
+                "n_estimators": 150,
+                "criterion": "squared_error",
+                "max_depth": 8,
+                "min_samples_split": 5,
+                "min_samples_leaf": 2,
+                "max_features": None,
+                "bootstrap": True,
+                "random_state": 42,
+                "n_jobs": -1
+            },
+            # Configuración con criterion="absolute_error"
+            {
+                "n_estimators": 200,
+                "criterion": "absolute_error",
+                "max_depth": 10,
+                "min_samples_split": 2,
+                "min_samples_leaf": 1,
+                "max_features": "sqrt",
+                "bootstrap": True,
+                "random_state": 42,
+                "n_jobs": -1
+            },
+            # Configuración balanceada final
+            {
+                "n_estimators": 300,
+                "criterion": "squared_error",
+                "max_depth": 12,
+                "min_samples_split": 3,
+                "min_samples_leaf": 1,
+                "max_features": "sqrt",
+                "bootstrap": True,
+                "random_state": 42,
+                "n_jobs": -1
+            }
+        ],
         "experiment_name": "RandomForestRegression"
     },
     "Cubist": {
@@ -101,6 +215,8 @@ def load_params(path="params.yaml"):
             return yaml.safe_load(f)
     raise FileNotFoundError("params.yaml no encontrado")
 
+
+'''
 def log_run_to_mlflow(experiment_name, params, metrics, model=None, run_name=None):
     mlflow.set_experiment(experiment_name)
     with mlflow.start_run(run_name=run_name):
@@ -110,35 +226,142 @@ def log_run_to_mlflow(experiment_name, params, metrics, model=None, run_name=Non
             mlflow.log_metric(k, float(v))
         #if model is not None:
             #mlflow.sklearn.log_model(model, "model")
+'''
 
-def calculate_metrics(y_true, y_pred):
-    """
-    Calculate RMSE, MAE, and R2 metrics for regression models.
-    Also prints the metrics to console.
+class MetricsCalculator:
+    """Class responsible for calculating and evaluating model metrics."""
+    
+    def __init__(self):
+        """Initialize MetricsCalculator."""
+        pass
+    
+    def calculate_metrics(self, y_true, y_pred):
+        """
+        Calculate RMSE, MAE, R2, and CV metrics for regression models.
     
     Args:
         y_true: True values
         y_pred: Predicted values
         
     Returns:
-        dict: Dictionary containing RMSE, MAE, and R2 metrics
+            dict: Dictionary containing RMSE, MAE, R2, and CV metrics
     """
-    rmse = root_mean_squared_error(y_true, y_pred)
-    mae = mean_absolute_error(y_true, y_pred)
-    r2 = r2_score(y_true, y_pred)
-    cv = cv_percent(y_true, y_pred)
+        rmse = root_mean_squared_error(y_true, y_pred)
+        mae = mean_absolute_error(y_true, y_pred)
+        r2 = r2_score(y_true, y_pred)
+        cv = self.calculate_cv_percent(y_true, y_pred)
+        
+        return {"RMSE": rmse, "MAE": mae, "R2": r2, "CV": cv}
     
-    # Print metrics
-    #print('RMSE:', rmse)
-    #print('MAE:', mae)
-    #print('R2:', r2)
-    #print('CV', cv)
+    def calculate_cv_percent(self, y_true, y_pred):
+        """
+        Calculate coefficient of variation percentage.
+        
+        Args:
+            y_true: True values
+            y_pred: Predicted values
+            
+        Returns:
+            float: CV percentage
+        """
+        rmse = root_mean_squared_error(y_true, y_pred)
+        return 100.0 * rmse / np.mean(y_true)
     
-    return {"RMSE": rmse, "MAE": mae, "R2": r2, "CV": cv}
+    def print_metrics(self, metrics, model_name="Model"):
+        """
+        Print metrics in a formatted way.
+        
+        Args:
+            metrics (dict): Dictionary of metrics
+            model_name (str): Name of the model
+        """
+        print(f"\n[{model_name}] Metrics:")
+        print(f"  RMSE: {metrics['RMSE']:.3f}")
+        print(f"  MAE:  {metrics['MAE']:.3f}")
+        print(f"  R2:   {metrics['R2']:.3f}")
+        print(f"  CV:   {metrics['CV']:.3f}%")
+    
+    def compare_models(self, model_results):
+        """
+        Compare multiple models and return ranking.
+        
+        Args:
+            model_results (dict): Dictionary with model names as keys and metrics as values
+            
+        Returns:
+            list: Sorted list of tuples (model_name, metrics) by RMSE
+        """
+        return sorted(model_results.items(), key=lambda x: x[1]['RMSE'])
+    
+    def get_best_model(self, model_results, criterion='RMSE'):
+        """
+        Get the best model based on specified criterion.
+        
+        Args:
+            model_results (dict): Dictionary with model names as keys and metrics as values
+            criterion (str): 'RMSE', 'MAE', 'R2', 'CV', or 'multi_criteria'
+            
+        Returns:
+            tuple: (best_model_name, best_metrics)
+        """
+        if criterion == 'RMSE':
+            return min(model_results.items(), key=lambda x: x[1]['RMSE'])
+        elif criterion == 'MAE':
+            return min(model_results.items(), key=lambda x: x[1]['MAE'])
+        elif criterion == 'R2':
+            return max(model_results.items(), key=lambda x: x[1]['R2'])
+        elif criterion == 'CV':
+            return min(model_results.items(), key=lambda x: x[1]['CV'])
+        else:
+            raise ValueError(f"Unknown criterion: {criterion}")
+    
+    def print_individual_rankings(self, model_results):
+        """
+        Print individual rankings for each metric.
+        
+        Args:
+            model_results (dict): Dictionary with model names as keys and metrics as values
+        """
+        print(f"\n{'='*60}")
+        print("INDIVIDUAL METRIC RANKINGS")
+        print(f"{'='*60}")
+        
+        # RMSE Ranking (lower is better)
+        rmse_ranking = sorted(model_results.items(), key=lambda x: x[1]['RMSE'])
+        print(f"\nRMSE Ranking (lower is better):")
+        for i, (model_name, metrics) in enumerate(rmse_ranking, 1):
+            print(f"  {i}. {model_name}: {metrics['RMSE']:.3f}")
+        
+        # MAE Ranking (lower is better)
+        mae_ranking = sorted(model_results.items(), key=lambda x: x[1]['MAE'])
+        print(f"\nMAE Ranking (lower is better):")
+        for i, (model_name, metrics) in enumerate(mae_ranking, 1):
+            print(f"  {i}. {model_name}: {metrics['MAE']:.3f}")
+        
+        # R2 Ranking (higher is better)
+        r2_ranking = sorted(model_results.items(), key=lambda x: x[1]['R2'], reverse=True)
+        print(f"\nR2 Ranking (higher is better):")
+        for i, (model_name, metrics) in enumerate(r2_ranking, 1):
+            print(f"  {i}. {model_name}: {metrics['R2']:.3f}")
+        
+        # CV Ranking (lower is better)
+        cv_ranking = sorted(model_results.items(), key=lambda x: x[1]['CV'])
+        print(f"\nCV Ranking (lower is better):")
+        for i, (model_name, metrics) in enumerate(cv_ranking, 1):
+            print(f"  {i}. {model_name}: {metrics['CV']:.3f}%")
+        
+        print(f"{'='*60}")
+
+# Legacy functions for backward compatibility
+def calculate_metrics(y_true, y_pred):
+    """Legacy function - use MetricsCalculator.calculate_metrics() instead."""
+    calculator = MetricsCalculator()
+    return calculator.calculate_metrics(y_true, y_pred)
 
 def cv_percent(y_true, y_pred):
-    rmse = root_mean_squared_error(y_true, y_pred)
-    return 100.0 * rmse / np.mean(y_true)
+    """Legacy function - use MetricsCalculator.calculate_cv_percent() instead."""
+    calculator = MetricsCalculator()
+    return calculator.calculate_cv_percent(y_true, y_pred)
 
 class DataSplitter:
     """Class responsible for splitting data into train and test sets."""
@@ -344,7 +567,7 @@ class ModelTrainer:
             metrics_calculator: Instance of MetricsCalculator
             mlflow_logger: Instance of MLflowLogger
         """
-        self.metrics_calculator = metrics_calculator
+        self.metrics_calculator = metrics_calculator or MetricsCalculator()
         self.mlflow_logger = mlflow_logger
     
     def train_model(self, model_config, X_train, y_train, X_test, y_test, preprocessor):
@@ -412,10 +635,7 @@ class ModelTrainer:
         y_pred = pipeline.predict(X_test)
         
         # Calculate metrics
-        if self.metrics_calculator:
-            metrics = self.metrics_calculator.calculate_metrics(y_test, y_pred)
-        else:
-            metrics = calculate_metrics(y_test, y_pred)  # Fallback to function
+        metrics = self.metrics_calculator.calculate_metrics(y_test, y_pred)
         
         # Log to MLflow (use current experiment context)
         if self.mlflow_logger:
@@ -451,7 +671,7 @@ class ModelTrainer:
         return MODEL_CONFIGS[model_name]
 
 
-
+'''
 def run_linear_regression(X_train, y_train, X_test, y_test, pre):
     """LinearRegression no tiene hiperparámetros: un solo run."""
     exp = "LinearRegression"
@@ -468,7 +688,8 @@ def run_linear_regression(X_train, y_train, X_test, y_test, pre):
     metrics = calculate_metrics(y_test, y_pred)
 
     log_run_to_mlflow(exp, params={}, metrics=metrics, model=pipe)
-
+'''
+'''
 def run_knn_regression(X_train, y_train, X_test, y_test, pre, knn_params):
     exp = "KNNRegression"
    
@@ -494,7 +715,8 @@ def run_knn_regression(X_train, y_train, X_test, y_test, pre, knn_params):
                 metrics = calculate_metrics(y_test, y_pred)
 
                 log_run_to_mlflow(exp, params=params, metrics=metrics, model=pipe)
-
+'''
+'''
 def run_cart_regression(X_train, y_train, X_test, y_test, pre):
     exp = "CARTRegression"
 
@@ -528,7 +750,8 @@ def run_cart_regression(X_train, y_train, X_test, y_test, pre):
                     metrics = calculate_metrics(y_test, y_pred)
                     print(f"[CART] {params} -> RMSE={metrics['RMSE']:.3f} MAE={metrics['MAE']:.3f} R2={metrics['R2']:.3f}")
                     log_run_to_mlflow(exp, params=params, metrics=metrics, model=None)
-
+'''
+'''
 def run_cart_regression2(X_train, y_train, X_test, y_test, pre, cart_params):
     exp = "CARTRegression"
 
@@ -552,15 +775,16 @@ def run_cart_regression2(X_train, y_train, X_test, y_test, pre, cart_params):
                           params=params, metrics=metrics, model=None)
 
         print(f"[CART] ccp_alpha={alpha:.6g} -> RMSE={metrics['RMSE']:.3f} MAE={metrics['MAE']:.3f} R2={metrics['R2']:.3f} CV={metrics['CV']:.3f}")
-
+'''
+'''
 def hyperparameter_tuning(X_train, y_train, pre, est, param_grid):
     pipe = Pipeline([("prep", pre), ("est", est)])
     grid_search=GridSearchCV(estimator=pipe, param_grid=param_grid, cv=3, n_jobs=-1, verbose=2,
                              scoring="neg_mean_squared_error")
     grid_search.fit(X_train, y_train)
     return grid_search
-
-
+'''
+'''
 def run_linear_regression_tuning(X_train, y_train, X_test, y_test, pre):
     param_grid = {
         "est__fit_intercept": [True, False]
@@ -578,7 +802,8 @@ def run_linear_regression_tuning(X_train, y_train, X_test, y_test, pre):
                         params=grid_search.best_params_, metrics=metrics, model=best_model,
                         run_name='Linear Regression')
     return best_model
-
+'''
+'''
 def run_knn_regression_tuning(X_train, y_train, X_test, y_test, pre):
     param_grid = {
         "est__n_neighbors": [3, 5, 7, 11],
@@ -598,7 +823,8 @@ def run_knn_regression_tuning(X_train, y_train, X_test, y_test, pre):
                         params=grid_search.best_params_, metrics=metrics, model=best_model,
                         run_name='KNN Regression')
     return best_model
-
+'''
+'''
 def run_cart_regression2_tuning(X_train, y_train, X_test, y_test, pre):
     param_grid = {
         "est__ccp_alpha": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
@@ -613,6 +839,8 @@ def run_cart_regression2_tuning(X_train, y_train, X_test, y_test, pre):
                         params=grid_search.best_params_, metrics=metrics, model=best_model,
                         run_name='CART Regression')
     return best_model
+'''
+'''
 def run_random_forest_regression(X_train, y_train, X_test, y_test, pre):
     exp = "RandomForestRegression"
 
@@ -642,7 +870,8 @@ def run_random_forest_regression(X_train, y_train, X_test, y_test, pre):
 
     # Registra en MLflow
     log_run_to_mlflow(exp, params=params, metrics=metrics, model=pipe) 
-
+'''
+'''
 def run_cubist_regression(X_train, y_train, X_test, y_test, pre, cubist_params):
     exp = "CubistRegression"
 
@@ -669,7 +898,7 @@ def run_cubist_regression(X_train, y_train, X_test, y_test, pre, cubist_params):
             metrics = calculate_metrics(y_test, y_pred)
             print(f"[Cubist] {params} -> RMSE={metrics['RMSE']:.3f} MAE={metrics['MAE']:.3f} R2={metrics['R2']:.3f}")
             log_run_to_mlflow(exp, params=params, metrics=metrics, model=None)
-
+'''
 
 def main():
     """Main function that runs all regression models in a parent experiment."""
@@ -701,7 +930,8 @@ def main():
     mlflow.set_experiment(parent_experiment_name)
     
     # 5 Train all models in the parent experiment
-    model_trainer = ModelTrainer()
+    metrics_calculator = MetricsCalculator()
+    model_trainer = ModelTrainer(metrics_calculator=metrics_calculator)
     all_results = {}
     
     print(f"\n{'='*60}")
@@ -751,28 +981,42 @@ def main():
         successful_models = {k: v for k, v in all_results.items() if v is not None}
         
         if successful_models:
-            # Find overall best model
-            best_overall_model = min(successful_models.items(), 
-                                   key=lambda x: x[1]['best_metrics']['RMSE'])
+            # Find best models for each criterion
+            model_metrics = {name: result['best_metrics'] for name, result in successful_models.items()}
             
-            best_model_name, best_model_data = best_overall_model
+            # Get best model for each criterion
+            best_rmse_model, best_rmse_metrics = metrics_calculator.get_best_model(model_metrics, criterion='RMSE')
+            best_mae_model, best_mae_metrics = metrics_calculator.get_best_model(model_metrics, criterion='MAE')
+            best_r2_model, best_r2_metrics = metrics_calculator.get_best_model(model_metrics, criterion='R2')
+            best_cv_model, best_cv_metrics = metrics_calculator.get_best_model(model_metrics, criterion='CV')
             
-            print(f"Best overall model: {best_model_name}")
-            print(f"Best RMSE: {best_model_data['best_metrics']['RMSE']:.3f}")
-            print(f"Best MAE: {best_model_data['best_metrics']['MAE']:.3f}")
-            print(f"Best R2: {best_model_data['best_metrics']['R2']:.3f}")
+            print(f"BEST MODELS BY CRITERION:")
+            print(f"  🏆 Best RMSE: {best_rmse_model} (RMSE: {best_rmse_metrics['RMSE']:.3f})")
+            print(f"  🏆 Best MAE:  {best_mae_model} (MAE: {best_mae_metrics['MAE']:.3f})")
+            print(f"  🏆 Best R2:   {best_r2_model} (R2: {best_r2_metrics['R2']:.3f})")
+            print(f"  🏆 Best CV:   {best_cv_model} (CV: {best_cv_metrics['CV']:.3f}%)")
             
-            # Log best model metrics in parent experiment
-            mlflow.log_metric("best_overall_RMSE", best_model_data['best_metrics']['RMSE'])
-            mlflow.log_metric("best_overall_MAE", best_model_data['best_metrics']['MAE'])
-            mlflow.log_metric("best_overall_R2", best_model_data['best_metrics']['R2'])
-            mlflow.log_param("best_overall_model", best_model_name)
+            # Print individual rankings
+            metrics_calculator.print_individual_rankings(model_metrics)
+            
+            # Log best models for each criterion
+            mlflow.log_param("best_RMSE_model", best_rmse_model)
+            mlflow.log_param("best_MAE_model", best_mae_model)
+            mlflow.log_param("best_R2_model", best_r2_model)
+            mlflow.log_param("best_CV_model", best_cv_model)
+            
+            # Log best metrics
+            mlflow.log_metric("best_RMSE_value", best_rmse_metrics['RMSE'])
+            mlflow.log_metric("best_MAE_value", best_mae_metrics['MAE'])
+            mlflow.log_metric("best_R2_value", best_r2_metrics['R2'])
+            mlflow.log_metric("best_CV_value", best_cv_metrics['CV'])
             
             # Log individual model results
             for model_name, result in successful_models.items():
                 mlflow.log_metric(f"{model_name}_RMSE", result['best_metrics']['RMSE'])
                 mlflow.log_metric(f"{model_name}_MAE", result['best_metrics']['MAE'])
                 mlflow.log_metric(f"{model_name}_R2", result['best_metrics']['R2'])
+                mlflow.log_metric(f"{model_name}_CV", result['best_metrics']['CV'])
         
         print(f"\nTotal models trained: {len(successful_models)}/{len(models_to_run)}")
         print(f"{'='*60}")
