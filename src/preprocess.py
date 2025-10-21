@@ -45,11 +45,11 @@ class DataLoader:
             raise
 
 
-class Preprocessor:
-    """Class to preprocess steel energy data."""
+class DataCleaner:
+    """Class to clean and validate steel energy data."""
     
     def __init__(self):
-        """Initialize the Preprocessor."""
+        """Initialize the DataCleaner."""
         self.numeric_cols = [
             'Usage_kWh', 
             'Lagging_Current_Reactive.Power_kVarh', 
@@ -95,16 +95,16 @@ class Preprocessor:
             return mask, (lo, hi)
         return df[mask].copy(), (lo, hi)
     
-    def preprocess(self, df, output_path=None):
+    def clean_data(self, df, output_path=None):
         """
-        Preprocess data by applying all necessary transformations.
+        Clean data by applying all necessary data cleaning and validation steps.
         
         Args:
-            df (pd.DataFrame): DataFrame with data to preprocess
-            output_path (str, optional): Path where to save preprocessed data
+            df (pd.DataFrame): DataFrame with data to clean
+            output_path (str, optional): Path where to save cleaned data
             
         Returns:
-            pd.DataFrame: Preprocessed DataFrame
+            pd.DataFrame: Cleaned DataFrame
         """
         df_processed = df.copy()
         
@@ -131,7 +131,7 @@ class Preprocessor:
         
         # Save if output_path is specified
         if output_path:
-            self._save_processed_data(df_processed, output_path)
+            self._save_cleaned_data(df_processed, output_path)
         
         return df_processed
     
@@ -209,11 +209,11 @@ class Preprocessor:
         
         return df_clean
     
-    def _save_processed_data(self, df, output_path):
-        """Save preprocessed data."""
+    def _save_cleaned_data(self, df, output_path):
+        """Save cleaned data."""
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         df.to_csv(output_path, header=True, index=False)
-        print(f"Preprocessed data saved to {output_path}")
+        print(f"Cleaned data saved to {output_path}")
 
 
 if __name__ == "__main__":
@@ -222,12 +222,12 @@ if __name__ == "__main__":
 
     # Use the new classes
     data_loader = DataLoader()
-    preprocessor = Preprocessor()
+    data_cleaner = DataCleaner()
     
     # Load data
     df = data_loader.load_data(params["input"])
     
-    # Preprocess data
-    df_processed = preprocessor.preprocess(df, params["output"])
+    # Clean data
+    df_cleaned = data_cleaner.clean_data(df, params["output"])
     
-    print(f"Preprocessing completed. Final shape: {df_processed.shape}")
+    print(f"Data cleaning completed. Final shape: {df_cleaned.shape}")
