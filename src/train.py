@@ -22,6 +22,64 @@ from dotenv import load_dotenv
 
 TARGET = "Usage_kWh"
 
+# Model configurations
+MODEL_CONFIGS = {
+    "LinearRegression": {
+        "name": "LinearRegression",
+        "estimator": LinearRegression,
+        "params": [{"fit_intercept": True}, {"fit_intercept": False}],
+        "experiment_name": "LinearRegression"
+    },
+    "KNN": {
+        "name": "KNNRegression",
+        "estimator": KNeighborsRegressor,
+        "params": [
+            {"n_neighbors": 3, "weights": "uniform", "p": 1},
+            {"n_neighbors": 5, "weights": "distance", "p": 2},
+            {"n_neighbors": 7, "weights": "uniform", "p": 2},
+            {"n_neighbors": 11, "weights": "distance", "p": 1}
+        ],
+        "experiment_name": "KNNRegression"
+    },
+    "CART": {
+        "name": "CARTRegression",
+        "estimator": DecisionTreeRegressor,
+        "params": [
+            {"ccp_alpha": 0.0, "random_state": 42},
+            {"ccp_alpha": 0.1, "random_state": 42},
+            {"ccp_alpha": 0.2, "random_state": 42},
+            {"ccp_alpha": 0.3, "random_state": 42},
+            {"ccp_alpha": 0.4, "random_state": 42},
+            {"ccp_alpha": 0.5, "random_state": 42}
+        ],
+        "experiment_name": "CARTRegression"
+    },
+    "RandomForest": {
+        "name": "RandomForestRegression",
+        "estimator": RandomForestRegressor,
+        "params": [{
+            "n_estimators": 100,
+            "criterion": "squared_error",
+            "max_depth": 10,
+            "min_samples_split": 2,
+            "random_state": 42,
+            "n_jobs": -1
+        }],
+        "experiment_name": "RandomForestRegression"
+    },
+    "Cubist": {
+        "name": "CubistRegression",
+        "estimator": Cubist,
+        "params": [
+            {"n_committees": 1, "n_rules": 10},
+            {"n_committees": 5, "n_rules": 50},
+            {"n_committees": 10, "n_rules": 100},
+            {"n_committees": 20, "n_rules": 10}
+        ],
+        "experiment_name": "CubistRegression"
+    }
+}
+
 # Load environment variables from .env located at project root
 # This prevents committing sensitive values to version control
 load_dotenv()
@@ -124,7 +182,7 @@ class DataSplitter:
         print(f"[split] y_train: {y_train.shape} | y_test: {y_test.shape}")
         
         return X_train, X_test, y_train, y_test
-    
+
     def prepare_features_target(self, df):
         """
         Separate features and target from DataFrame.
@@ -162,39 +220,237 @@ class DataSplitter:
         return X_sorted, y_sorted
 
 
-
-def build_preprocessor():
-    pre = ColumnTransformer(
-        transformers=[
-            ('numeric_cols', Pipeline([
+class FeaturePreprocessor:
+    """Class responsible for building feature preprocessing pipelines."""
+    
+    def __init__(self):
+        """Initialize FeaturePreprocessor."""
+        self.numeric_features = [
+            'Lagging_Current_Reactive.Power_kVarh', 
+            'Leading_Current_Reactive_Power_kVarh', 
+            'CO2(tCO2)', 
+            'Lagging_Current_Power_Factor', 
+            'Leading_Current_Power_Factor', 
+            'NSM'
+        ]
+        
+        self.categorical_features = {
+            'Day_of_week': {
+                'categories': [['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']],
+                'drop': 'first',
+                'sparse_output': False
+            },
+            'WeekStatus': {
+                'categories': [['Weekend', 'Weekday']],
+                'drop': 'first',
+                'sparse_output': False
+            },
+            'Load_Type': {
+                'categories': [['Light_Load','Medium_Load','Maximum_Load']],
+                'dtype': np.int8,
+                'handle_unknown': 'use_encoded_value',
+                'unknown_value': -1
+            }
+        }
+    
+    def build_preprocessor(self):
+        """
+        Build the complete preprocessing pipeline using ColumnTransformer.
+        
+        Returns:
+            ColumnTransformer: Complete preprocessing pipeline
+        """
+        transformers = []
+        
+        # Add numeric features preprocessing
+        transformers.append(self._get_numeric_transformer())
+        
+        # Add categorical features preprocessing
+        for feature_name, config in self.categorical_features.items():
+            if feature_name == 'Load_Type':
+                transformers.append(self._get_ordinal_transformer(feature_name, config))
+            else:
+                transformers.append(self._get_onehot_transformer(feature_name, config))
+        
+        # Create ColumnTransformer
+        preprocessor = ColumnTransformer(
+            transformers=transformers,
+            remainder='drop',
+            verbose_feature_names_out=False
+        )
+        
+        return preprocessor
+    
+    def _get_numeric_transformer(self):
+        """Get transformer for numeric features."""
+        return (
+            'numeric_cols',
+            Pipeline([
                 ('Standard_Scaler', StandardScaler())
-            ]), ['Lagging_Current_Reactive.Power_kVarh', 'Leading_Current_Reactive_Power_kVarh', 'CO2(tCO2)', 'Lagging_Current_Power_Factor', 'Leading_Current_Power_Factor', 'NSM']),
-            ('Day_of_week_oh', Pipeline([
+            ]),
+            self.numeric_features
+        )
+    
+    def _get_onehot_transformer(self, feature_name, config):
+        """Get OneHotEncoder transformer for categorical features."""
+        return (
+            f'{feature_name}_oh',
+            Pipeline([
                 ('ohe', OneHotEncoder(
-                categories=[['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']],
-                drop='first',
-                sparse_output=False))
-            ]), ['Day_of_week']),
-            ('WeekStatus_bi', Pipeline([ # produce 1 col: Weekend=0, Weekday=1
-                ('bin', OneHotEncoder(
-                    categories=[['Weekend', 'Weekday']],
-                    drop='first',
-                    sparse_output=False
+                    categories=config['categories'],
+                    drop=config['drop'],
+                    sparse_output=config['sparse_output']
                 ))
-            ]), ['WeekStatus']),
-            ('LoadType_ord', Pipeline([
+            ]),
+            [feature_name]
+        )
+    
+    def _get_ordinal_transformer(self, feature_name, config):
+        """Get OrdinalEncoder transformer for ordinal features."""
+        return (
+            f'{feature_name}_ord',
+            Pipeline([
                 ('ord', OrdinalEncoder(
-                    categories=[['Light_Load','Medium_Load','Maximum_Load']],
-                    dtype=np.int8,
-                    handle_unknown='use_encoded_value',
-                    unknown_value=-1
+                    categories=config['categories'],
+                    dtype=config['dtype'],
+                    handle_unknown=config['handle_unknown'],
+                    unknown_value=config['unknown_value']
                 ))
-            ]), ['Load_Type'])
-        ],
-        remainder='drop',
-        verbose_feature_names_out=False
-    )
-    return pre
+            ]),
+            [feature_name]
+        )
+    
+    def get_numeric_features(self):
+        """Get list of numeric features."""
+        return self.numeric_features.copy()
+    
+    def get_categorical_features(self):
+        """Get list of categorical features."""
+        return list(self.categorical_features.keys())
+    
+    def get_all_features(self):
+        """Get list of all features used in preprocessing."""
+        return self.numeric_features + self.get_categorical_features()
+
+
+class ModelTrainer:
+    """Class responsible for training different ML models using configuration."""
+    
+    def __init__(self, metrics_calculator=None, mlflow_logger=None):
+        """
+        Initialize ModelTrainer with dependencies.
+        
+        Args:
+            metrics_calculator: Instance of MetricsCalculator
+            mlflow_logger: Instance of MLflowLogger
+        """
+        self.metrics_calculator = metrics_calculator
+        self.mlflow_logger = mlflow_logger
+    
+    def train_model(self, model_config, X_train, y_train, X_test, y_test, preprocessor):
+        """
+        Generic method to train any model based on configuration.
+        
+        Args:
+            model_config (dict): Model configuration from MODEL_CONFIGS
+            X_train, y_train: Training data
+            X_test, y_test: Test data
+            preprocessor: Feature preprocessor
+            
+        Returns:
+            tuple: (best_model, best_metrics)
+        """
+        experiment_name = model_config.get("experiment_name", model_config["name"])
+        estimator_class = model_config["estimator"]
+        params_list = model_config.get("params", [{}])
+        
+        best_model = None
+        best_metrics = None
+        
+        # Test each parameter combination
+        for params in params_list:
+            estimator = estimator_class(**params)
+            
+            model, metrics = self._train_single_model(
+                estimator=estimator,
+                X_train=X_train, y_train=y_train,
+                X_test=X_test, y_test=y_test,
+                preprocessor=preprocessor,
+                experiment_name=experiment_name,
+                params=params
+            )
+            
+            # Keep track of best model
+            if best_model is None or metrics['RMSE'] < best_metrics['RMSE']:
+                best_model = model
+                best_metrics = metrics
+        
+        return best_model, best_metrics
+    
+    def _train_single_model(self, estimator, X_train, y_train, X_test, y_test, preprocessor, experiment_name, params):
+        """
+        Private method to train a single model instance.
+        
+        Args:
+            estimator: sklearn estimator instance
+            X_train, y_train: Training data
+            X_test, y_test: Test data
+            preprocessor: Feature preprocessor
+            experiment_name (str): Name for MLflow experiment
+            params (dict): Model parameters
+            
+        Returns:
+            tuple: (pipeline, metrics)
+        """
+        # Create pipeline
+        pipeline = Pipeline([("prep", preprocessor), ("est", estimator)])
+        
+        # Train model
+        pipeline.fit(X_train, y_train)
+        
+        # Make predictions
+        y_pred = pipeline.predict(X_test)
+        
+        # Calculate metrics
+        if self.metrics_calculator:
+            metrics = self.metrics_calculator.calculate_metrics(y_test, y_pred)
+        else:
+            metrics = calculate_metrics(y_test, y_pred)  # Fallback to function
+        
+        # Log to MLflow (use current experiment context)
+        if self.mlflow_logger:
+            self.mlflow_logger.log_experiment(
+                experiment_name=experiment_name,
+                params=params,
+                metrics=metrics,
+                model=pipeline
+            )
+        else:
+            # Use nested runs within the parent experiment
+            with mlflow.start_run(run_name=f"{experiment_name}_{params}", nested=True):
+                mlflow.log_params(params)
+                for k, v in metrics.items():
+                    mlflow.log_metric(k, float(v))
+                # mlflow.sklearn.log_model(pipeline, "model")
+        
+        return pipeline, metrics
+    
+    def get_model_config(self, model_name):
+        """
+        Get model configuration by name.
+        
+        Args:
+            model_name (str): Name of the model
+            
+        Returns:
+            dict: Model configuration
+        """
+        if model_name not in MODEL_CONFIGS:
+            raise ValueError(f"Model '{model_name}' not found in MODEL_CONFIGS")
+        
+        return MODEL_CONFIGS[model_name]
+
+
 
 def run_linear_regression(X_train, y_train, X_test, y_test, pre):
     """LinearRegression no tiene hiperparámetros: un solo run."""
@@ -416,39 +672,112 @@ def run_cubist_regression(X_train, y_train, X_test, y_test, pre, cubist_params):
 
 
 def main():
+    """Main function that runs all regression models in a parent experiment."""
 
     mlflow.set_tracking_uri(uri=mlflow_tracking_uri)
 
     params = load_params()
-    data_path   = params["preprocess"]["output"]
-    split_cfg   = params.get("split", {})
+    data_path = params["preprocess"]["output"]
+    split_cfg = params.get("split", {})
     train_cfg = params.get("train", {})
-    #method      = split_cfg.get("method", "time")      # 'time' o 'random'
-    test_size   = split_cfg.get("test_size", 0.2)
-    model_to_run = train_cfg.get("model_to_run", "Cubist")
-
-    # 1 Loads the data
+    test_size = split_cfg.get("test_size", 0.2)
+    
+    # Get list of models to run (default: all models)
+    models_to_run = train_cfg.get("models_to_run", list(MODEL_CONFIGS.keys()))
+    
+    # 1 Load the data
     df = pd.read_csv(data_path, parse_dates=["date"])
 
-    # 2 Splits the data
+    # 2 Split the data
     data_splitter = DataSplitter(target_column=TARGET)
     X_train, X_test, y_train, y_test = data_splitter.split_data(df=df, test_size=test_size)
 
-    pre = build_preprocessor()
+    # 3 Build preprocessor
+    feature_preprocessor = FeaturePreprocessor()
+    pre = feature_preprocessor.build_preprocessor()
 
-    if model_to_run == "LinearRegression":
-        run_linear_regression(X_train, y_train, X_test, y_test, pre)
-    elif model_to_run == "KNN":
-        knn_params = params.get("knn", {})
-        run_knn_regression(X_train, y_train, X_test, y_test, pre, knn_params)
-    elif model_to_run == "CART":
-        cart_params = params.get("cart", {})
-        run_cart_regression2(X_train, y_train, X_test, y_test, pre, cart_params)
-    elif model_to_run == "Cubist":
-        cubist_params = params.get("cubist", {})
-        run_cubist_regression(X_train, y_train, X_test, y_test, pre, cubist_params)
-    elif model_to_run == "RandomForest":
-        run_random_forest_regression(X_train, y_train, X_test, y_test, pre)
+    # 4 Create parent experiment
+    parent_experiment_name = "Steel Energy Regression Comparison"
+    mlflow.set_experiment(parent_experiment_name)
+    
+    # 5 Train all models in the parent experiment
+    model_trainer = ModelTrainer()
+    all_results = {}
+    
+    print(f"\n{'='*60}")
+    print(f"Starting parent experiment: {parent_experiment_name}")
+    print(f"Models to run: {', '.join(models_to_run)}")
+    print(f"{'='*60}\n")
+    
+    with mlflow.start_run(run_name="Parent Experiment"):
+        # Log parent experiment parameters
+        mlflow.log_param("test_size", test_size)
+        mlflow.log_param("models_count", len(models_to_run))
+        mlflow.log_param("models_list", models_to_run)
+        
+        # Train each model type
+        for model_name in models_to_run:
+            print(f"\n--- Training {model_name} ---")
+            
+            try:
+                model_config = model_trainer.get_model_config(model_name)
+                
+                # Train model (this will create child experiments)
+                best_model, best_metrics = model_trainer.train_model(
+                    model_config=model_config,
+                    X_train=X_train, y_train=y_train,
+                    X_test=X_test, y_test=y_test,
+                    preprocessor=pre
+                )
+                
+                # Store results
+                all_results[model_name] = {
+                    'best_model': best_model,
+                    'best_metrics': best_metrics,
+                    'config': model_config
+                }
+                
+                print(f"✓ {model_name} completed - Best RMSE: {best_metrics['RMSE']:.3f}")
+                
+            except Exception as e:
+                print(f"✗ Error training {model_name}: {str(e)}")
+                all_results[model_name] = None
+        
+        # 6 Log summary results in parent experiment (INSIDE the parent run context)
+        print(f"\n{'='*60}")
+        print("EXPERIMENT SUMMARY")
+        print(f"{'='*60}")
+        
+        successful_models = {k: v for k, v in all_results.items() if v is not None}
+        
+        if successful_models:
+            # Find overall best model
+            best_overall_model = min(successful_models.items(), 
+                                   key=lambda x: x[1]['best_metrics']['RMSE'])
+            
+            best_model_name, best_model_data = best_overall_model
+            
+            print(f"Best overall model: {best_model_name}")
+            print(f"Best RMSE: {best_model_data['best_metrics']['RMSE']:.3f}")
+            print(f"Best MAE: {best_model_data['best_metrics']['MAE']:.3f}")
+            print(f"Best R2: {best_model_data['best_metrics']['R2']:.3f}")
+            
+            # Log best model metrics in parent experiment
+            mlflow.log_metric("best_overall_RMSE", best_model_data['best_metrics']['RMSE'])
+            mlflow.log_metric("best_overall_MAE", best_model_data['best_metrics']['MAE'])
+            mlflow.log_metric("best_overall_R2", best_model_data['best_metrics']['R2'])
+            mlflow.log_param("best_overall_model", best_model_name)
+            
+            # Log individual model results
+            for model_name, result in successful_models.items():
+                mlflow.log_metric(f"{model_name}_RMSE", result['best_metrics']['RMSE'])
+                mlflow.log_metric(f"{model_name}_MAE", result['best_metrics']['MAE'])
+                mlflow.log_metric(f"{model_name}_R2", result['best_metrics']['R2'])
+        
+        print(f"\nTotal models trained: {len(successful_models)}/{len(models_to_run)}")
+        print(f"{'='*60}")
+    
+    return all_results
 
 
 
