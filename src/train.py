@@ -820,6 +820,69 @@ def main():
             # Print individual rankings
             metrics_calculator.print_individual_rankings(model_metrics)
             
+            # Create summary DataFrames for artifacts
+            # 1. Overall metrics summary
+            summary_data = []
+            for model_name, metrics in model_metrics.items():
+                summary_data.append({
+                    'Model': model_name,
+                    'RMSE': metrics['RMSE'],
+                    'MAE': metrics['MAE'],
+                    'R2': metrics['R2'],
+                    'CV': metrics['CV']
+                })
+            summary_df = pd.DataFrame(summary_data)
+            
+            # 2. Best models by criterion
+            best_models_data = [
+                {'Criterion': 'RMSE', 'Best_Model': best_rmse_model, 'Value': best_rmse_metrics['RMSE']},
+                {'Criterion': 'MAE', 'Best_Model': best_mae_model, 'Value': best_mae_metrics['MAE']},
+                {'Criterion': 'R2', 'Best_Model': best_r2_model, 'Value': best_r2_metrics['R2']},
+                {'Criterion': 'CV', 'Best_Model': best_cv_model, 'Value': best_cv_metrics['CV']}
+            ]
+            best_models_df = pd.DataFrame(best_models_data)
+            
+            # 3. Rankings DataFrames
+            rmse_ranking = sorted(model_metrics.items(), key=lambda x: x[1]['RMSE'])
+            rmse_ranking_df = pd.DataFrame([
+                {'Rank': i+1, 'Model': model_name, 'RMSE': metrics['RMSE']}
+                for i, (model_name, metrics) in enumerate(rmse_ranking)
+            ])
+            
+            mae_ranking = sorted(model_metrics.items(), key=lambda x: x[1]['MAE'])
+            mae_ranking_df = pd.DataFrame([
+                {'Rank': i+1, 'Model': model_name, 'MAE': metrics['MAE']}
+                for i, (model_name, metrics) in enumerate(mae_ranking)
+            ])
+            
+            r2_ranking = sorted(model_metrics.items(), key=lambda x: x[1]['R2'], reverse=True)
+            r2_ranking_df = pd.DataFrame([
+                {'Rank': i+1, 'Model': model_name, 'R2': metrics['R2']}
+                for i, (model_name, metrics) in enumerate(r2_ranking)
+            ])
+            
+            cv_ranking = sorted(model_metrics.items(), key=lambda x: x[1]['CV'])
+            cv_ranking_df = pd.DataFrame([
+                {'Rank': i+1, 'Model': model_name, 'CV': metrics['CV']}
+                for i, (model_name, metrics) in enumerate(cv_ranking)
+            ])
+            
+            # Save all DataFrames as artifacts with descriptive names
+            artifacts_to_save = [
+                (summary_df, 'models_metrics_summary.csv', 'summary'),
+                (best_models_df, 'best_models_by_criterion.csv', 'summary'),
+                (rmse_ranking_df, 'rmse_ranking.csv', 'rankings'),
+                (mae_ranking_df, 'mae_ranking.csv', 'rankings'),
+                (r2_ranking_df, 'r2_ranking.csv', 'rankings'),
+                (cv_ranking_df, 'cv_ranking.csv', 'rankings')
+            ]
+            
+            for df, filename, artifact_path in artifacts_to_save:
+                temp_file = os.path.join(tempfile.gettempdir(), filename)
+                df.to_csv(temp_file, index=False)
+                mlflow.log_artifact(temp_file, artifact_path)
+                os.remove(temp_file)
+            
             # Log best models for each criterion
             mlflow.log_param("best_RMSE_model", best_rmse_model)
             mlflow.log_param("best_MAE_model", best_mae_model)

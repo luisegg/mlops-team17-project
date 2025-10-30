@@ -34,7 +34,7 @@ train:
   data: data/raw/steel_energy_modified_clean.csv
   model: models/model.pkl
   model_to_run: LinearRegression
-  models_to_run: ["LinearRegression", "KNN", "CART", "RandomForest", "Cubist"]
+  models_to_run: ["LinearRegression"]
 
 cubist:
   n_committees: [1, 5, 10, 20]
