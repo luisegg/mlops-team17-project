@@ -626,14 +626,13 @@ class ModelTrainer:
             preprocessor: Feature preprocessor
             
         Returns:
-            tuple: (best_model, best_metrics)
+            list: List of dictionaries containing all trained models with their metrics and params
         """
         experiment_name = model_config.get("experiment_name", model_config["name"])
         estimator_class = model_config["estimator"]
         params_list = model_config.get("params", [{}])
         
-        best_model = None
-        best_metrics = None
+        all_models = []  # Store all models instead of just the best
         
         # Test each parameter combination
         for params in params_list:
@@ -648,12 +647,14 @@ class ModelTrainer:
                 params=params
             )
             
-            # Keep track of best model
-            if best_model is None or metrics['RMSE'] < best_metrics['RMSE']:
-                best_model = model
-                best_metrics = metrics
+            # Store all models with their metrics and params
+            all_models.append({
+                'model': model,
+                'metrics': metrics,
+                'params': params
+            })
         
-        return best_model, best_metrics
+        return all_models
     
     def _train_single_model(self, estimator, X_train, y_train, X_test, y_test, preprocessor, experiment_name, params):
         """
@@ -991,22 +992,25 @@ def main():
             try:
                 model_config = model_trainer.get_model_config(model_name, hyperparameter_manager)
                 
-                # Train model (this will create child experiments)
-                best_model, best_metrics = model_trainer.train_model(
+                # Train model (returns all models now)
+                all_trained_models = model_trainer.train_model(
                     model_config=model_config,
                     X_train=X_train, y_train=y_train,
                     X_test=X_test, y_test=y_test,
                     preprocessor=pre
                 )
                 
-                # Store results
+                # Store all results for this model type
                 all_results[model_name] = {
-                    'best_model': best_model,
-                    'best_metrics': best_metrics,
+                    'models': all_trained_models,  # All models with their metrics
                     'config': model_config
                 }
                 
-                print(f"✓ {model_name} completed - Best RMSE: {best_metrics['RMSE']:.3f}")
+                # Find best model for summary display
+                #best_result = min(all_trained_models, key=lambda x: x['metrics']['RMSE'])
+                
+                print(f"✓ {model_name} completed - Trained {len(all_trained_models)} models")
+                #print(f"  Best RMSE: {best_result['metrics']['RMSE']:.3f}")
                 
             except Exception as e:
                 print(f"✗ Error training {model_name}: {str(e)}")
@@ -1020,8 +1024,12 @@ def main():
         successful_models = {k: v for k, v in all_results.items() if v is not None}
         
         if successful_models:
-            # Find best models for each criterion
-            model_metrics = {name: result['best_metrics'] for name, result in successful_models.items()}
+            # Extract best metrics from each model type for comparison
+            model_metrics = {}
+            for name, result in successful_models.items():
+                # Get the best model from all trained models for this algorithm
+                best_result = min(result['models'], key=lambda x: x['metrics']['RMSE'])
+                model_metrics[name] = best_result['metrics']
             
             # Get best model for each criterion
             best_rmse_model, best_rmse_metrics = metrics_calculator.get_best_model(model_metrics, criterion='RMSE')
@@ -1050,12 +1058,12 @@ def main():
             mlflow.log_metric("best_R2_value", best_r2_metrics['R2'])
             mlflow.log_metric("best_CV_value", best_cv_metrics['CV'])
             
-            # Log individual model results
-            for model_name, result in successful_models.items():
-                mlflow.log_metric(f"{model_name}_RMSE", result['best_metrics']['RMSE'])
-                mlflow.log_metric(f"{model_name}_MAE", result['best_metrics']['MAE'])
-                mlflow.log_metric(f"{model_name}_R2", result['best_metrics']['R2'])
-                mlflow.log_metric(f"{model_name}_CV", result['best_metrics']['CV'])
+            # Log individual model results (best of each algorithm)
+            for model_name, metrics in model_metrics.items():
+                mlflow.log_metric(f"{model_name}_RMSE", metrics['RMSE'])
+                mlflow.log_metric(f"{model_name}_MAE", metrics['MAE'])
+                mlflow.log_metric(f"{model_name}_R2", metrics['R2'])
+                mlflow.log_metric(f"{model_name}_CV", metrics['CV'])
         
         print(f"\nTotal models trained: {len(successful_models)}/{len(models_to_run)}")
         print(f"{'='*60}")
