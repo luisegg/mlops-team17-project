@@ -18,6 +18,7 @@ from mlflow.models import infer_signature
 import joblib
 import json
 import os
+import tempfile
 from dotenv import load_dotenv
 
 TARGET = "Usage_kWh"
@@ -620,6 +621,7 @@ class ModelTrainer:
                 estimator=estimator,
                 X_train=X_train, y_train=y_train,
                 X_test=X_test, y_test=y_test,
+                X_test_original=X_test,  # Pass original X_test for artifact logging
                 preprocessor=preprocessor,
                 experiment_name=experiment_name,
                 params=params
@@ -634,7 +636,7 @@ class ModelTrainer:
         
         return all_models
     
-    def _train_single_model(self, estimator, X_train, y_train, X_test, y_test, preprocessor, experiment_name, params):
+    def _train_single_model(self, estimator, X_train, y_train, X_test, y_test, X_test_original, preprocessor, experiment_name, params):
         """
         Private method to train a single model instance.
         
@@ -642,6 +644,7 @@ class ModelTrainer:
             estimator: sklearn estimator instance
             X_train, y_train: Training data
             X_test, y_test: Test data
+            X_test_original: Original X_test data (before preprocessing) for artifact logging
             preprocessor: Feature preprocessor
             experiment_name (str): Name for MLflow experiment
             params (dict): Model parameters
@@ -666,6 +669,23 @@ class ModelTrainer:
             mlflow.log_params(params)
             for k, v in metrics.items():
                 mlflow.log_metric(k, float(v))
+            
+            # Create DataFrame with original features, actual target, and predictions
+            predictions_df = X_test_original.copy()
+            predictions_df['y_actual'] = y_test.values
+            predictions_df['y_predicted'] = y_pred
+            
+            # Save DataFrame as CSV artifact
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+                temp_path = f.name
+                predictions_df.to_csv(temp_path, index=False)
+            
+            # Log the CSV file as artifact
+            mlflow.log_artifact(temp_path, "predictions")
+            
+            # Clean up temporary file
+            os.remove(temp_path)
+            
             # mlflow.sklearn.log_model(pipeline, "model")
         
         return pipeline, metrics
