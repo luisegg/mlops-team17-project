@@ -829,8 +829,8 @@ class ModelTrainer:
             os.remove(temp_path)
             
             # Log the trained pipeline as a model artifact
-            #signature = infer_signature(X_test, y_pred)
-            #mlflow.sklearn.log_model(pipeline, "model", signature=signature, input_example=X_test.head(5))
+            signature = infer_signature(X_test, y_pred)
+            mlflow.sklearn.log_model(pipeline, "model", signature=signature, input_example=X_test.head(5))
         
         return pipeline, metrics
     
