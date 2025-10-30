@@ -18,6 +18,7 @@ from mlflow.models import infer_signature
 import joblib
 import json
 import os
+import tempfile
 from dotenv import load_dotenv
 
 TARGET = "Usage_kWh"
@@ -259,17 +260,7 @@ class HyperparameterManager:
         print(f"{'='*60}")
 
 
-'''
-def log_run_to_mlflow(experiment_name, params, metrics, model=None, run_name=None):
-    mlflow.set_experiment(experiment_name)
-    with mlflow.start_run(run_name=run_name):
-        if params:
-            mlflow.log_params(params)
-        for k, v in metrics.items():
-            mlflow.log_metric(k, float(v))
-        #if model is not None:
-            #mlflow.sklearn.log_model(model, "model")
-'''
+
 
 class MetricsCalculator:
     """Class responsible for calculating and evaluating model metrics."""
@@ -395,20 +386,146 @@ class MetricsCalculator:
             print(f"  {i}. {model_name}: {metrics['CV']:.3f}%")
         
         print(f"{'='*60}")
+    
+    def _params_to_string(self, params_dict):
+        """
+        Convert parameters dictionary to comma-separated string.
+        
+        Args:
+            params_dict (dict): Dictionary of parameters
+            
+        Returns:
+            str: Comma-separated string representation
+        """
+        if not params_dict:
+            return "default"
+        return ", ".join([f"{k}={v}" for k, v in params_dict.items()])
+    
+    def create_all_models_summary_df(self, successful_models):
+        """
+        Create DataFrame with all models (all child runs) and their metrics.
+        
+        Args:
+            successful_models (dict): Dictionary with model results
+            
+        Returns:
+            pd.DataFrame: DataFrame with all models and metrics
+        """
+        summary_data = []
+        for model_name, result in successful_models.items():
+            # Iterate through ALL models for this algorithm (not just the best)
+            for model_result in result['models']:
+                summary_data.append({
+                    'Model': model_name,
+                    'Hyperparameters': self._params_to_string(model_result['params']),
+                    'RMSE': model_result['metrics']['RMSE'],
+                    'MAE': model_result['metrics']['MAE'],
+                    'R2': model_result['metrics']['R2'],
+                    'CV': model_result['metrics']['CV']
+                })
+        return pd.DataFrame(summary_data)
+    
+    def create_best_models_by_criterion_df(self, model_metrics, model_params):
+        """
+        Create DataFrame with best model for each criterion.
+        
+        Args:
+            model_metrics (dict): Dictionary with model names as keys and metrics as values
+            model_params (dict): Dictionary with model names as keys and params as values
+            
+        Returns:
+            pd.DataFrame: DataFrame with best models by criterion
+        """
+        best_rmse_model, best_rmse_metrics = self.get_best_model(model_metrics, criterion='RMSE')
+        best_mae_model, best_mae_metrics = self.get_best_model(model_metrics, criterion='MAE')
+        best_r2_model, best_r2_metrics = self.get_best_model(model_metrics, criterion='R2')
+        best_cv_model, best_cv_metrics = self.get_best_model(model_metrics, criterion='CV')
+        
+        best_models_data = [
+            {'Criterion': 'RMSE', 'Best_Model': best_rmse_model, 'Hyperparameters': self._params_to_string(model_params[best_rmse_model]), 'Value': best_rmse_metrics['RMSE']},
+            {'Criterion': 'MAE', 'Best_Model': best_mae_model, 'Hyperparameters': self._params_to_string(model_params[best_mae_model]), 'Value': best_mae_metrics['MAE']},
+            {'Criterion': 'R2', 'Best_Model': best_r2_model, 'Hyperparameters': self._params_to_string(model_params[best_r2_model]), 'Value': best_r2_metrics['R2']},
+            {'Criterion': 'CV', 'Best_Model': best_cv_model, 'Hyperparameters': self._params_to_string(model_params[best_cv_model]), 'Value': best_cv_metrics['CV']}
+        ]
+        return pd.DataFrame(best_models_data)
+    
+    def create_rankings_dfs(self, model_metrics, model_params):
+        """
+        Create ranking DataFrames for each metric.
+        
+        Args:
+            model_metrics (dict): Dictionary with model names as keys and metrics as values
+            model_params (dict): Dictionary with model names as keys and params as values
+            
+        Returns:
+            dict: Dictionary with ranking DataFrames for each metric
+        """
+        # RMSE Ranking (lower is better)
+        rmse_ranking = sorted(model_metrics.items(), key=lambda x: x[1]['RMSE'])
+        rmse_ranking_df = pd.DataFrame([
+            {'Rank': i+1, 'Model': model_name, 'Hyperparameters': self._params_to_string(model_params[model_name]), 'RMSE': metrics['RMSE']}
+            for i, (model_name, metrics) in enumerate(rmse_ranking)
+        ])
+        
+        # MAE Ranking (lower is better)
+        mae_ranking = sorted(model_metrics.items(), key=lambda x: x[1]['MAE'])
+        mae_ranking_df = pd.DataFrame([
+            {'Rank': i+1, 'Model': model_name, 'Hyperparameters': self._params_to_string(model_params[model_name]), 'MAE': metrics['MAE']}
+            for i, (model_name, metrics) in enumerate(mae_ranking)
+        ])
+        
+        # R2 Ranking (higher is better)
+        r2_ranking = sorted(model_metrics.items(), key=lambda x: x[1]['R2'], reverse=True)
+        r2_ranking_df = pd.DataFrame([
+            {'Rank': i+1, 'Model': model_name, 'Hyperparameters': self._params_to_string(model_params[model_name]), 'R2': metrics['R2']}
+            for i, (model_name, metrics) in enumerate(r2_ranking)
+        ])
+        
+        # CV Ranking (lower is better)
+        cv_ranking = sorted(model_metrics.items(), key=lambda x: x[1]['CV'])
+        cv_ranking_df = pd.DataFrame([
+            {'Rank': i+1, 'Model': model_name, 'Hyperparameters': self._params_to_string(model_params[model_name]), 'CV': metrics['CV']}
+            for i, (model_name, metrics) in enumerate(cv_ranking)
+        ])
+        
+        return {
+            'rmse': rmse_ranking_df,
+            'mae': mae_ranking_df,
+            'r2': r2_ranking_df,
+            'cv': cv_ranking_df
+        }
+    
+    def save_summary_artifacts(self, successful_models, model_metrics, model_params):
+        """
+        Create and save all summary DataFrames as MLflow artifacts.
+        
+        Args:
+            successful_models (dict): Dictionary with all model results
+            model_metrics (dict): Dictionary with model names as keys and metrics as values
+            model_params (dict): Dictionary with model names as keys and params as values
+        """
+        # Create DataFrames
+        summary_df = self.create_all_models_summary_df(successful_models)
+        best_models_df = self.create_best_models_by_criterion_df(model_metrics, model_params)
+        rankings_dfs = self.create_rankings_dfs(model_metrics, model_params)
+        
+        # Save all DataFrames as artifacts with descriptive names
+        artifacts_to_save = [
+            (summary_df, 'models_metrics_summary.csv', 'summary'),
+            (best_models_df, 'best_models_by_criterion.csv', 'summary'),
+            (rankings_dfs['rmse'], 'rmse_ranking.csv', 'rankings'),
+            (rankings_dfs['mae'], 'mae_ranking.csv', 'rankings'),
+            (rankings_dfs['r2'], 'r2_ranking.csv', 'rankings'),
+            (rankings_dfs['cv'], 'cv_ranking.csv', 'rankings')
+        ]
+        
+        for df, filename, artifact_path in artifacts_to_save:
+            temp_file = os.path.join(tempfile.gettempdir(), filename)
+            df.to_csv(temp_file, index=False)
+            mlflow.log_artifact(temp_file, artifact_path)
+            os.remove(temp_file)
 
 
-'''
-# Legacy functions for backward compatibility
-def calculate_metrics(y_true, y_pred):
-    """Legacy function - use MetricsCalculator.calculate_metrics() instead."""
-    calculator = MetricsCalculator()
-    return calculator.calculate_metrics(y_true, y_pred)
-
-def cv_percent(y_true, y_pred):
-    """Legacy function - use MetricsCalculator.calculate_cv_percent() instead."""
-    calculator = MetricsCalculator()
-    return calculator.calculate_cv_percent(y_true, y_pred)
-'''
 
 class DataSplitter:
     """Class responsible for splitting data into train and test sets."""
@@ -626,14 +743,13 @@ class ModelTrainer:
             preprocessor: Feature preprocessor
             
         Returns:
-            tuple: (best_model, best_metrics)
+            list: List of dictionaries containing all trained models with their metrics and params
         """
         experiment_name = model_config.get("experiment_name", model_config["name"])
         estimator_class = model_config["estimator"]
         params_list = model_config.get("params", [{}])
         
-        best_model = None
-        best_metrics = None
+        all_models = []  # Store all models instead of just the best
         
         # Test each parameter combination
         for params in params_list:
@@ -643,19 +759,22 @@ class ModelTrainer:
                 estimator=estimator,
                 X_train=X_train, y_train=y_train,
                 X_test=X_test, y_test=y_test,
+                X_test_original=X_test,  # Pass original X_test for artifact logging
                 preprocessor=preprocessor,
                 experiment_name=experiment_name,
                 params=params
             )
             
-            # Keep track of best model
-            if best_model is None or metrics['RMSE'] < best_metrics['RMSE']:
-                best_model = model
-                best_metrics = metrics
+            # Store all models with their metrics and params
+            all_models.append({
+                'model': model,
+                'metrics': metrics,
+                'params': params
+            })
         
-        return best_model, best_metrics
+        return all_models
     
-    def _train_single_model(self, estimator, X_train, y_train, X_test, y_test, preprocessor, experiment_name, params):
+    def _train_single_model(self, estimator, X_train, y_train, X_test, y_test, X_test_original, preprocessor, experiment_name, params):
         """
         Private method to train a single model instance.
         
@@ -663,6 +782,7 @@ class ModelTrainer:
             estimator: sklearn estimator instance
             X_train, y_train: Training data
             X_test, y_test: Test data
+            X_test_original: Original X_test data (before preprocessing) for artifact logging
             preprocessor: Feature preprocessor
             experiment_name (str): Name for MLflow experiment
             params (dict): Model parameters
@@ -687,7 +807,30 @@ class ModelTrainer:
             mlflow.log_params(params)
             for k, v in metrics.items():
                 mlflow.log_metric(k, float(v))
-            # mlflow.sklearn.log_model(pipeline, "model")
+            
+            # Create DataFrame with original features, actual target, and predictions
+            predictions_df = X_test_original.copy()
+            predictions_df['y_actual'] = y_test.values
+            predictions_df['y_predicted'] = y_pred
+            
+            # Add error metrics per row
+            predictions_df['residual_error'] = predictions_df['y_actual'] - predictions_df['y_predicted']
+            predictions_df['percentage_error'] = (predictions_df['residual_error'] / predictions_df['y_actual']) * 100
+            
+            # Save DataFrame as CSV artifact
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+                temp_path = f.name
+                predictions_df.to_csv(temp_path, index=False)
+            
+            # Log the CSV file as artifact
+            mlflow.log_artifact(temp_path, "predictions")
+            
+            # Clean up temporary file
+            os.remove(temp_path)
+            
+            # Log the trained pipeline as a model artifact
+            #signature = infer_signature(X_test, y_pred)
+            #mlflow.sklearn.log_model(pipeline, "model", signature=signature, input_example=X_test.head(5))
         
         return pipeline, metrics
     
@@ -705,234 +848,6 @@ class ModelTrainer:
         return hyperparameter_manager.get_model_config(model_name)
 
 
-'''
-def run_linear_regression(X_train, y_train, X_test, y_test, pre):
-    """LinearRegression no tiene hiperparámetros: un solo run."""
-    exp = "LinearRegression"
-    est = LinearRegression(fit_intercept=True)
-    pipe = Pipeline([("prep", pre), ("est", est)])
-
-    # Fit the model
-    pipe.fit(X_train, y_train)
-
-    #Predicts
-    y_pred = pipe.predict(X_test)
-
-    # Gets metrics
-    metrics = calculate_metrics(y_test, y_pred)
-
-    log_run_to_mlflow(exp, params={}, metrics=metrics, model=pipe)
-'''
-'''
-def run_knn_regression(X_train, y_train, X_test, y_test, pre, knn_params):
-    exp = "KNNRegression"
-   
-    k_list = knn_params.get("k", [3, 5, 7, 11])
-    weights_list = knn_params.get("weights", ["uniform", "distance"])
-    p_list = knn_params.get("p", [1, 2])
-    metric = "minkowski"
-
-    for k in k_list:
-        for w in weights_list:
-            for p in p_list:
-                params = {"n_neighbors": k, "weights": w, "metric": metric, "p": p}
-                est = KNeighborsRegressor(**params)
-                pipe = Pipeline([("prep", pre), ("est", est)])
-
-                # Fit the model
-                pipe.fit(X_train, y_train)
-
-                #Predicts
-                y_pred = pipe.predict(X_test)
-
-                # Gets metrics
-                metrics = calculate_metrics(y_test, y_pred)
-
-                log_run_to_mlflow(exp, params=params, metrics=metrics, model=pipe)
-'''
-'''
-def run_cart_regression(X_train, y_train, X_test, y_test, pre):
-    exp = "CARTRegression"
-
-    max_depth_list = [None, 5]
-    min_samples_split_list = [2, 5]
-    min_samples_leaf_list = [1, 2, 5]
-    max_features_list = [None, "sqrt", "log2"]  # nº features consideradas al dividir
-
-    for md in max_depth_list:
-        for mss in min_samples_split_list:
-            for msl in min_samples_leaf_list:
-                for mf in max_features_list:
-                    params = {
-                        "max_depth": md,
-                        "min_samples_split": mss,
-                        "min_samples_leaf": msl,
-                        "max_features": mf,
-                        "random_state": 42,
-                    }
-
-                    est = DecisionTreeRegressor(**params)
-                    pipe = Pipeline([("prep", pre), ("est", est)])
-
-                    # Entrena
-                    pipe.fit(X_train, y_train)
-
-                    # Predice
-                    y_pred = pipe.predict(X_test)
-
-                    # Métricas
-                    metrics = calculate_metrics(y_test, y_pred)
-                    print(f"[CART] {params} -> RMSE={metrics['RMSE']:.3f} MAE={metrics['MAE']:.3f} R2={metrics['R2']:.3f}")
-                    log_run_to_mlflow(exp, params=params, metrics=metrics, model=None)
-'''
-'''
-def run_cart_regression2(X_train, y_train, X_test, y_test, pre, cart_params):
-    exp = "CARTRegression"
-
-    # --- 1) candidates de ccp_alpha ---
-    alphas = cart_params.get("ccp_alpha", [0.0, 0.1, 0.2, 0.3, 0.4, 0.5])
-
-    # --- 2) probar cada alpha ---
-    for alpha in alphas:
-        est = DecisionTreeRegressor(ccp_alpha=float(alpha), random_state=42)
-        pipe = Pipeline([("prep", pre), ("est", est)])
-
-        pipe.fit(X_train, y_train)
-        y_pred = pipe.predict(X_test)
-
-        # Calculate metrics
-        metrics = calculate_metrics(y_test, y_pred)
-        params  = {"ccp_alpha": float(alpha), "random_state": 42}
-
-        # Reutiliza tu helper de MLflow
-        log_run_to_mlflow(experiment_name=exp,
-                          params=params, metrics=metrics, model=None)
-
-        print(f"[CART] ccp_alpha={alpha:.6g} -> RMSE={metrics['RMSE']:.3f} MAE={metrics['MAE']:.3f} R2={metrics['R2']:.3f} CV={metrics['CV']:.3f}")
-'''
-'''
-def hyperparameter_tuning(X_train, y_train, pre, est, param_grid):
-    pipe = Pipeline([("prep", pre), ("est", est)])
-    grid_search=GridSearchCV(estimator=pipe, param_grid=param_grid, cv=3, n_jobs=-1, verbose=2,
-                             scoring="neg_mean_squared_error")
-    grid_search.fit(X_train, y_train)
-    return grid_search
-'''
-'''
-def run_linear_regression_tuning(X_train, y_train, X_test, y_test, pre):
-    param_grid = {
-        "est__fit_intercept": [True, False]
-    }
-    model = LinearRegression()
-    grid_search = hyperparameter_tuning(X_train, y_train, pre, model, param_grid)
-
-    best_model = grid_search.best_estimator_
-
-    y_pred = best_model.predict(X_test)
-
-    metrics = calculate_metrics(y_test, y_pred)
-
-    log_run_to_mlflow(experiment_name='Algorithm Comparison',
-                        params=grid_search.best_params_, metrics=metrics, model=best_model,
-                        run_name='Linear Regression')
-    return best_model
-'''
-'''
-def run_knn_regression_tuning(X_train, y_train, X_test, y_test, pre):
-    param_grid = {
-        "est__n_neighbors": [3, 5, 7, 11],
-        "est__weights": ["uniform", "distance"],
-        "est__metric": ["minkowski"],
-        "est__p": [1, 2]
-    }
-    model = KNeighborsRegressor()
-    grid_search = hyperparameter_tuning(X_train, y_train, pre, model, param_grid)
-    best_model = grid_search.best_estimator_
-
-    y_pred = best_model.predict(X_test)
-
-    metrics = calculate_metrics(y_test, y_pred)
-
-    log_run_to_mlflow(experiment_name='Algorithm Comparison',
-                        params=grid_search.best_params_, metrics=metrics, model=best_model,
-                        run_name='KNN Regression')
-    return best_model
-'''
-'''
-def run_cart_regression2_tuning(X_train, y_train, X_test, y_test, pre):
-    param_grid = {
-        "est__ccp_alpha": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
-    }
-    model = DecisionTreeRegressor()
-    grid_search = hyperparameter_tuning(X_train, y_train, pre, model, param_grid)
-
-    best_model = grid_search.best_estimator_
-    y_pred = best_model.predict(X_test)
-    metrics = calculate_metrics(y_test, y_pred)
-    log_run_to_mlflow(experiment_name='Algorithm Comparison',
-                        params=grid_search.best_params_, metrics=metrics, model=best_model,
-                        run_name='CART Regression')
-    return best_model
-'''
-'''
-def run_random_forest_regression(X_train, y_train, X_test, y_test, pre):
-    exp = "RandomForestRegression"
-
-    params = {
-        "n_estimators": 100,           # Número de árboles
-        "criterion": "squared_error",  
-        "max_depth": 10,                # Profundidad máxima de los árboles
-        "min_samples_split": 2,        # Mínimo de muestras para dividir un nodo
-        "random_state": 42,
-        "n_jobs": -1                   # Usa todos los núcleos
-    }
-
-    est = RandomForestRegressor(**params)
-    pipe = Pipeline([("prep", pre), ("est", est)])
-
-    # Entrena el modelo
-    pipe.fit(X_train, y_train)
-
-    # Predicciones
-    y_pred = pipe.predict(X_test)
-
-    # Calcula métricas
-    metrics = calculate_metrics(y_test, y_pred)
-
-    # Muestra resultados por consola
-    print(f"[RandomForest] RMSE={metrics['RMSE']:.3f}, MAE={metrics['MAE']:.3f}, R2={metrics['R2']:.3f}")
-
-    # Registra en MLflow
-    log_run_to_mlflow(exp, params=params, metrics=metrics, model=pipe) 
-'''
-'''
-def run_cubist_regression(X_train, y_train, X_test, y_test, pre, cubist_params):
-    exp = "CubistRegression"
-
-    n_committees_list = cubist_params.get("n_committees", [1, 5, 10, 20])
-    n_rules_list = cubist_params.get("n_rules", [10, 50, 100])
-
-    for n_committees in n_committees_list:
-        for n_rules in n_rules_list:
-            params = {
-                "n_committees": n_committees,
-                "n_rules": n_rules,
-            }
-
-            est = Cubist(**params)
-            pipe = Pipeline([("prep", pre), ("est", est)])
-
-            # Entrena
-            pipe.fit(X_train, y_train)
-
-            # Predice
-            y_pred = pipe.predict(X_test)
-
-            # Métricas
-            metrics = calculate_metrics(y_test, y_pred)
-            print(f"[Cubist] {params} -> RMSE={metrics['RMSE']:.3f} MAE={metrics['MAE']:.3f} R2={metrics['R2']:.3f}")
-            log_run_to_mlflow(exp, params=params, metrics=metrics, model=None)
-'''
 
 def main():
     """Main function that runs all regression models in a parent experiment."""
@@ -991,22 +906,25 @@ def main():
             try:
                 model_config = model_trainer.get_model_config(model_name, hyperparameter_manager)
                 
-                # Train model (this will create child experiments)
-                best_model, best_metrics = model_trainer.train_model(
+                # Train model (returns all models now)
+                all_trained_models = model_trainer.train_model(
                     model_config=model_config,
                     X_train=X_train, y_train=y_train,
                     X_test=X_test, y_test=y_test,
                     preprocessor=pre
                 )
                 
-                # Store results
+                # Store all results for this model type
                 all_results[model_name] = {
-                    'best_model': best_model,
-                    'best_metrics': best_metrics,
+                    'models': all_trained_models,  # All models with their metrics
                     'config': model_config
                 }
                 
-                print(f"✓ {model_name} completed - Best RMSE: {best_metrics['RMSE']:.3f}")
+                # Find best model for summary display
+                #best_result = min(all_trained_models, key=lambda x: x['metrics']['RMSE'])
+                
+                print(f"✓ {model_name} completed - Trained {len(all_trained_models)} models")
+                #print(f"  Best RMSE: {best_result['metrics']['RMSE']:.3f}")
                 
             except Exception as e:
                 print(f"✗ Error training {model_name}: {str(e)}")
@@ -1020,8 +938,14 @@ def main():
         successful_models = {k: v for k, v in all_results.items() if v is not None}
         
         if successful_models:
-            # Find best models for each criterion
-            model_metrics = {name: result['best_metrics'] for name, result in successful_models.items()}
+            # Extract best metrics and params from each model type for comparison and rankings
+            model_metrics = {}
+            model_params = {}
+            for name, result in successful_models.items():
+                # Get the best model from all trained models for this algorithm
+                best_result = min(result['models'], key=lambda x: x['metrics']['RMSE'])
+                model_metrics[name] = best_result['metrics']
+                model_params[name] = best_result['params']
             
             # Get best model for each criterion
             best_rmse_model, best_rmse_metrics = metrics_calculator.get_best_model(model_metrics, criterion='RMSE')
@@ -1038,6 +962,9 @@ def main():
             # Print individual rankings
             metrics_calculator.print_individual_rankings(model_metrics)
             
+            # Create and save all summary DataFrames as artifacts
+            metrics_calculator.save_summary_artifacts(successful_models, model_metrics, model_params)
+            
             # Log best models for each criterion
             mlflow.log_param("best_RMSE_model", best_rmse_model)
             mlflow.log_param("best_MAE_model", best_mae_model)
@@ -1050,12 +977,12 @@ def main():
             mlflow.log_metric("best_R2_value", best_r2_metrics['R2'])
             mlflow.log_metric("best_CV_value", best_cv_metrics['CV'])
             
-            # Log individual model results
-            for model_name, result in successful_models.items():
-                mlflow.log_metric(f"{model_name}_RMSE", result['best_metrics']['RMSE'])
-                mlflow.log_metric(f"{model_name}_MAE", result['best_metrics']['MAE'])
-                mlflow.log_metric(f"{model_name}_R2", result['best_metrics']['R2'])
-                mlflow.log_metric(f"{model_name}_CV", result['best_metrics']['CV'])
+            # Log individual model results (best of each algorithm)
+            for model_name, metrics in model_metrics.items():
+                mlflow.log_metric(f"{model_name}_RMSE", metrics['RMSE'])
+                mlflow.log_metric(f"{model_name}_MAE", metrics['MAE'])
+                mlflow.log_metric(f"{model_name}_R2", metrics['R2'])
+                mlflow.log_metric(f"{model_name}_CV", metrics['CV'])
         
         print(f"\nTotal models trained: {len(successful_models)}/{len(models_to_run)}")
         print(f"{'='*60}")
