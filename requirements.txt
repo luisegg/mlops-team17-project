@@ -2,6 +2,6 @@ dvc
 dvc-s3
 pandas
 scikit-learn
-mlflow
+mlflow==2.22.0
 python-dotenv
 cubist
