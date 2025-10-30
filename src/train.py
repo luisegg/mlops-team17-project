@@ -675,6 +675,10 @@ class ModelTrainer:
             predictions_df['y_actual'] = y_test.values
             predictions_df['y_predicted'] = y_pred
             
+            # Add error metrics per row
+            predictions_df['residual_error'] = predictions_df['y_actual'] - predictions_df['y_predicted']
+            predictions_df['percentage_error'] = (predictions_df['residual_error'] / predictions_df['y_actual']) * 100
+            
             # Save DataFrame as CSV artifact
             with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
                 temp_path = f.name
