@@ -1,26 +1,52 @@
-# Steel Industry Energy Consumption Prediction
+# MLOPS Equipo 17
+
+<a target="_blank" href="https://cookiecutter-data-science.drivendata.org/">
+    <img src="https://img.shields.io/badge/CCDS-Project%20template-328F97?logo=cookiecutter" />
+</a>
 
 This project aims to predict the energy consumption (`Usage_kWh`) in the steel industry using various machine learning models. The goal is to build a robust regression model that can accurately forecast energy usage based on historical data.
 
-## Project Structure
+## Project Organization
 
 ```
-├── data/
-│   ├── processed/
-│   └── raw/
-├── models/
-├── notebooks/
-├── src/
-│   ├── preprocess.py
-│   ├── train.py
-│   └── evaluate.py
-├── .dvc/
-├── .github/
-├── .gitignore
-├── dvc.yaml
-├── params.yaml
-├── requirements.txt
-└── README.md
+├── LICENSE            <- Open-source license if one is chosen
+├── Makefile           <- Makefile with convenience commands like `make data` or `make train`
+├── README.md          <- The top-level README for developers using this project.
+├── data
+│   ├── external       <- Data from third party sources.
+│   ├── interim        <- Intermediate data that has been transformed.
+│   ├── processed      <- The final, canonical data sets for modeling.
+│   └── raw            <- The original, immutable data dump.
+│
+├── docs               <- A default mkdocs project; see www.mkdocs.org for details
+│
+├── models             <- Trained and serialized models, model predictions, or model summaries
+│
+├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
+│                         the creator's initials, and a short `-` delimited description, e.g.
+│                         `1.0-jqp-initial-data-exploration`.
+│
+├── pyproject.toml     <- Project configuration file with package metadata for 
+│                         Fase 2 and configuration for tools like black
+│
+├── references         <- Data dictionaries, manuals, and all other explanatory materials.
+│
+├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
+│   └── figures        <- Generated graphics and figures to be used in reporting
+│
+├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
+│                         generated with `pip freeze > requirements.txt`
+│
+├── setup.cfg          <- Configuration file for flake8
+│
+└── src   <- Source code for use in this project.
+    │
+    ├── __init__.py             <- Makes Fase 2 a Python module          
+    └── train.py            <- Code to train models
+    └── evaluate.py         <- Code to evaluate models
+    └── preprocess.py      <- Code to preprocess the data
+    └── main.py             <- Main script to run the pipeline
+    
 ```
 
 ## Tools and Technologies
@@ -98,3 +124,6 @@ Contributions are welcome! Please follow these steps to contribute:
 5.  **Create a pull request** to the `main` branch of the original repository.
 
 Please make sure your code follows the project's coding standards and includes tests for new features.
+
+--------
+

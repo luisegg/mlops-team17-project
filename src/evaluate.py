@@ -1,3 +1,14 @@
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, OrdinalEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, root_mean_squared_error
+import numpy as np
+import pandas as pd
+import mlflow
+import tempfile
+import os
 import os
 import mlflow
 import pandas as pd
@@ -5,8 +16,10 @@ import numpy as np
 import yaml
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from dotenv import load_dotenv
-from src.train import DataSplitter, FeaturePreprocessor, TARGET
+from train import DataSplitter, FeaturePreprocessor
 
+
+TARGET = "Usage_kWh"
 # ======================================================
 #  CONFIGURACIÓN DE MLflow Y VARIABLES DE ENTORNO
 # ======================================================
@@ -141,3 +154,5 @@ def evaluate_best_model():
 
 if __name__ == "__main__":
     evaluate_best_model()
+
+
