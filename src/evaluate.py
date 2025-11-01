@@ -113,9 +113,7 @@ def evaluate_best_model():
     for k, v in metrics.items():
         print(f"{k}: {v:.4f}")
 
-    # ------------------------------------------------------
     # Registrar evaluación en nuevo experimento
-    # ------------------------------------------------------
     mlflow.set_experiment("Steel Energy Model Evaluation")
 
     with mlflow.start_run(run_name="Evaluate_Best_Model"):
