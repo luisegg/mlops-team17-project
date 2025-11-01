@@ -11,6 +11,7 @@ from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, r
 from sklearn.linear_model import LinearRegression
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.tree import DecisionTreeRegressor
+from sklearn.svm import SVR
 from cubist import Cubist
 import numpy as np
 import mlflow
@@ -49,6 +50,11 @@ MODEL_CONFIGS = {
         "name": "CubistRegression",
         "estimator": Cubist,
         "experiment_name": "CubistRegression"
+    },
+    "SVM": {
+        "name": "SVMRegression",
+        "estimator": SVR,
+        "experiment_name": "SVMRegression"
     }
 }
 
@@ -206,8 +212,13 @@ class HyperparameterManager:
                     })
             return combinations
         
+        elif model_name == "SVM":
+            param_grid = self.params.get("svm", {})
+            keys, values = zip(*param_grid.items())
+            return [dict(zip(keys, v)) for v in itertools.product(*values)]
+        
         else:
-            return [{}]  # Default empty parameters
+            raise ValueError(f"Unsupported model: {model_name}")
     
     def get_model_config(self, model_name):
         """
