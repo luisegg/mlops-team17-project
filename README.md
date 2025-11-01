@@ -39,7 +39,7 @@ This is the repository of the Team 17 for the MLOPS Project including the 3 phas
 │
 ├── setup.cfg          <- Configuration file for flake8
 │
-└── Fase 2   <- Source code for use in this project.
+└── src   <- Source code for use in this project.
     │
     ├── __init__.py             <- Makes Fase 2 a Python module
     │
