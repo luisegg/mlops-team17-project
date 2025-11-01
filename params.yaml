@@ -34,7 +34,7 @@ train:
   data: data/raw/steel_energy_modified_clean.csv
   model: models/model.pkl
   model_to_run: LinearRegression
-  models_to_run: ["LinearRegression", "KNN", "CART", "RandomForest", "Cubist"]
+  models_to_run: ["LinearRegression", "KNN", "CART", "RandomForest", "Cubist", "SVM"]
 
 cubist:
   n_committees: [1, 5, 10, 20]
@@ -64,3 +64,8 @@ random_forest:
   max_features: ["sqrt"]
   criterion: ["squared_error"]
   bootstrap: [true]
+
+svm:
+  C: [0.1, 1, 10]
+  kernel: ["linear", "rbf"]
+  gamma: ["scale", "auto"]

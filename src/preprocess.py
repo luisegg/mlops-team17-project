@@ -215,7 +215,6 @@ class DataCleaner:
         df.to_csv(output_path, header=True, index=False)
         print(f"Cleaned data saved to {output_path}")
 
-
 if __name__ == "__main__":
     # Load parameters from params.yaml
     params = yaml.safe_load(open("params.yaml"))['preprocess']
@@ -231,3 +230,6 @@ if __name__ == "__main__":
     df_cleaned = data_cleaner.clean_data(df, params["output"])
     
     print(f"Data cleaning completed. Final shape: {df_cleaned.shape}")
+
+
+
