@@ -48,6 +48,16 @@ Before running the API, ensure you have:
 
 The API expects a model named `steel-energy-cubist` to be registered in MLflow Model Registry with stage `Production`.
 
+### Current Model Details
+
+- **Model Name**: `steel-energy-cubist`
+- **Version**: `1`
+- **Stage**: `Production`
+- **Model URI**: `models:/steel-energy-cubist/Production` (or `models:/steel-energy-cubist/1`)
+- **Run ID**: `a2d00acf3383409a9bb35b1482e0e4d4`
+- **Hyperparameters**: n_committees=5, n_rules=100
+- **Metrics**: RMSE=5.65, MAE=0.46, R2=0.968
+
 ### Registering the Model Manually
 
 1. **Find your best Cubist model run** in MLflow UI:
@@ -102,12 +112,15 @@ client.transition_model_version_stage(
 
 ### Option 1: Using Uvicorn directly
 ```bash
-uvicorn src.api:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+
+# Or with auto-reload for development
+python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### Option 2: Using Python
+### Option 2: Using Python directly
 ```bash
-python src/api.py
+python src/api/main.py
 ```
 
 The API will be available at:

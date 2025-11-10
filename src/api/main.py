@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import JSONResponse
 
-from src.schemas import (
+from src.api.schemas import (
     PredictionInput,
     PredictionResponse,
     BatchPredictionRequest,
@@ -331,9 +331,9 @@ if __name__ == "__main__":
     import uvicorn
 
     # Run the application
-    # Note: Use "src.api:app" when reload=True to ensure proper module loading
+    # Note: Use "src.api.main:app" when reload=True to ensure proper module loading
     uvicorn.run(
-        "src.api:app",
+        "src.api.main:app",
         host="0.0.0.0",
         port=8000,
         reload=True,
