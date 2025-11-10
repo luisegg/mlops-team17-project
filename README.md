@@ -140,9 +140,6 @@ python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 
 # Or with auto-reload for development
 python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
-
-# Or run directly
-python src/api/main.py
 ```
 
 **API Endpoints:**

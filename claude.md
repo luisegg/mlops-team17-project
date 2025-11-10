@@ -110,17 +110,12 @@ client.transition_model_version_stage(
 
 ## Running the API
 
-### Option 1: Using Uvicorn directly
 ```bash
+# Start the FastAPI service
 python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 
 # Or with auto-reload for development
 python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-### Option 2: Using Python directly
-```bash
-python src/api/main.py
 ```
 
 The API will be available at:
