@@ -4,3 +4,4 @@ models/*
 artifacts/*
 .python-version
 __pycache__/
+.claude/

@@ -5,3 +5,6 @@ scikit-learn
 mlflow==2.22.0
 python-dotenv
 cubist
+fastapi
+uvicorn[standard]
+pydantic
