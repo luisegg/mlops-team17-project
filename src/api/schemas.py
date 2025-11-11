@@ -49,14 +49,10 @@ class PredictionInput(BaseModel):
         alias="CO2(tCO2)"
     )
     Lagging_Current_Power_Factor: float = Field(
-        description="Lagging current power factor",
-        ge=0.0,
-        le=1.0
+        description="Lagging current power factor (percentage scale, can exceed 100)"
     )
     Leading_Current_Power_Factor: float = Field(
-        description="Leading current power factor",
-        ge=0.0,
-        le=1.0
+        description="Leading current power factor (percentage scale, 0-100)"
     )
     NSM: int = Field(
         description="Number of seconds from midnight (0-86399)",
