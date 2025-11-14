@@ -8,3 +8,4 @@ cubist
 fastapi
 uvicorn[standard]
 pydantic
+pytest
