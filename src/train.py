@@ -2,6 +2,15 @@ from errno import ESTALE
 import pandas as pd
 from pathlib import Path
 import yaml
+import numpy as np
+import random
+import os 
+
+SEED = 42
+os.environ["PYTHONHASHSEED"] = str(SEED)
+random.seed(SEED)
+np.random.seed(SEED)
+
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, OrdinalEncoder
 from sklearn.compose import ColumnTransformer
@@ -13,12 +22,10 @@ from sklearn.neighbors import KNeighborsRegressor
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.svm import SVR
 from cubist import Cubist
-import numpy as np
 import mlflow
 from mlflow.models import infer_signature
 import joblib
 import json
-import os
 import tempfile
 from dotenv import load_dotenv
 
@@ -74,6 +81,10 @@ mlflow_tracking_password = os.getenv('MLFLOW_TRACKING_PASSWORD')
 os.environ['MLFLOW_TRACKING_URI'] = mlflow_tracking_uri
 os.environ['MLFLOW_TRACKING_USERNAME'] = mlflow_tracking_username
 os.environ['MLFLOW_TRACKING_PASSWORD'] = mlflow_tracking_password
+
+#Desactivation of multithreading for MLflow to avoid issues in some environments
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
 
 class HyperparameterManager:
     """
@@ -162,7 +173,8 @@ class HyperparameterManager:
                                         "min_samples_leaf": min_leaf,
                                         "max_features": max_feat,
                                         "criterion": crit,
-                                        "random_state": 42
+                                        "random_state": 42,
+                                        "splitter": "best"
                                     })
             return combinations
         
@@ -196,7 +208,7 @@ class HyperparameterManager:
                                             "criterion": crit,
                                             "bootstrap": boot,
                                             "random_state": 42,
-                                            "n_jobs": -1
+                                            "n_jobs": 1
                                         })
             return combinations
         
@@ -217,7 +229,9 @@ class HyperparameterManager:
         elif model_name == "SVM":
             param_grid = self.params.get("svm", {})
             keys, values = zip(*param_grid.items())
-            return [dict(zip(keys, v)) for v in itertools.product(*values)]
+            combos = [dict(zip(keys, v)) for v in itertools.product(*values)]
+
+            return combos
         
         else:
             raise ValueError(f"Unsupported model: {model_name}")
@@ -570,7 +584,7 @@ class DataSplitter:
 
         # Split with scikit-learn
         X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=test_size, shuffle=shuffle
+                X, y, test_size=test_size, shuffle=shuffle, random_state=42
         )
 
             # Print split information
