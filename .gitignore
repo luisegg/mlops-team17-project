@@ -5,3 +5,11 @@ artifacts/*
 .python-version
 __pycache__/
 .claude/
+
+# Pytest
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Local MLflow
+mlflow.db

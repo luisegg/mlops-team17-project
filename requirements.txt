@@ -8,3 +8,7 @@ cubist
 fastapi
 uvicorn[standard]
 pydantic
+pytest
+httpx
+pytest-asyncio
+pytest-cov
