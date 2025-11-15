@@ -1,5 +1,9 @@
+"""
+Data-related tests.
+
+This file is reserved for future data validation and preprocessing tests.
+"""
 import pytest
 
 
-def test_code_is_tested():
-    assert False
+# Future data tests will go here
