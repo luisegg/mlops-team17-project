@@ -181,8 +181,7 @@ Todos los tests están en la carpeta `tests/`, organizados en subcarpetas `Unit/
 
 - Para ejecutar **todas las pruebas**:
 ```bash
-pytest -q
-
+pytest -q 
 
 
 ## Contributing
