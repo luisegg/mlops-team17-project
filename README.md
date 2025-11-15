@@ -39,18 +39,21 @@ This project aims to predict the energy consumption (`Usage_kWh`) in the steel i
 │
 ├── setup.cfg          <- Configuration file for flake8
 │
-└── src   <- Source code for use in this project.
-    │
-    ├── __init__.py             <- Makes Fase 2 a Python module
-    ├── train.py                <- Code to train models
-    ├── evaluate.py             <- Code to evaluate models
-    ├── preprocess.py           <- Code to preprocess the data
-    ├── main.py                 <- Main script to run the pipeline
-    └── api/                    <- FastAPI service module
-        ├── __init__.py         <- Makes api a Python module
-        ├── main.py             <- FastAPI application and endpoints
-        ├── schemas.py          <- Pydantic schemas for API validation
-        └── check_model.py      <- Utility to check MLflow model registration
+├── src                <- Source code for use in this project.
+│   ├── __init__.py             <- Makes Fase 2 a Python module
+│   ├── train.py                <- Code to train models
+│   ├── evaluate.py             <- Code to evaluate models
+│   ├── preprocess.py           <- Code to preprocess the data
+│   ├── main.py                 <- Main script to run the pipeline
+│   └── api/                    <- FastAPI service module
+│       ├── __init__.py         <- Makes api a Python module
+│       ├── main.py             <- FastAPI application and endpoints
+│       ├── schemas.py          <- Pydantic schemas for API validation
+│       └── check_model.py      <- Utility to check MLflow model registration
+│
+└── tests               <- Test suite for the project
+    ├── Unit           <- Unit tests for individual modules
+    ├── Integration    <- Integration tests for pipelines and end-to-end functionality
 
 ```
 
@@ -169,6 +172,18 @@ curl -X POST http://localhost:8000/predict \
 ```
 
 For complete API documentation, see `claude.md`.
+
+## Tests 
+
+Todos los tests están en la carpeta `tests/`, organizados en subcarpetas `Unit/` y `Integration/`. Pytest detectará automáticamente todos los archivos que comiencen con `test_`.
+
+### Ejecutar los tests
+
+- Para ejecutar **todas las pruebas**:
+```bash
+pytest -q
+
+
 
 ## Contributing
 
