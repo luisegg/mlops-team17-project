@@ -142,11 +142,13 @@ class DataCleaner:
         return df_clean
     
     def _remove_unnecessary_columns(self, df):
-        """Remove columns that are not needed for processing."""
         df_clean = df.copy()
-        df_clean.drop(columns=['mixed_type_col'], inplace=True)
+        # Solo eliminar si existe
+        cols_to_drop = ['mixed_type_col']
+        existing_cols = [col for col in cols_to_drop if col in df_clean.columns]
+        df_clean.drop(columns=existing_cols, inplace=True)
         return df_clean
-    
+            
     def _clean_numerical_columns(self, df):
         """Clean numerical columns by converting invalid values to NaN and proper data types."""
         df_clean = df.copy()
@@ -230,6 +232,3 @@ if __name__ == "__main__":
     df_cleaned = data_cleaner.clean_data(df, params["output"])
     
     print(f"Data cleaning completed. Final shape: {df_cleaned.shape}")
-
-
-

@@ -3,3 +3,7 @@
 ['remote "origin"']
     url = s3://dvc
     endpointurl = https://dagshub.com/luisegg/mlops-team17-project.s3
+['remote "backup_remote"']
+    url = s3://itesm-mna/202502-equipo17
+    region = us-east-2
+    profile = equipo17
