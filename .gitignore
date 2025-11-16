@@ -13,3 +13,7 @@ htmlcov/
 
 # Local MLflow
 mlflow.db
+
+# Virtual environments
+.venv/
+.venv-py311/
