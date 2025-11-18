@@ -3,7 +3,7 @@ from typing import List, Optional, Dict
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
+import inspect
 
 class DataDriftGenerator:
     """
@@ -201,33 +201,42 @@ class DataDriftGenerator:
         return drifted
 
     def generate_multivariate_drift(self, n_samples: int = 1000, drift_intensity: float = 0.4) -> pd.DataFrame:
-        """Generate drift that respects feature correlations by sampling and adding correlated noise."""
-        # sample base rows
-        available_cols = [c for c in self.numeric_cols if c in self.original_data.columns]
-        base_samples = self.original_data[available_cols].sample(n=n_samples, replace=True, random_state=self.random_state)
 
-        # compute covariance on base_samples
-        cov_matrix = base_samples.cov().values
-        mean_vector = base_samples.mean().values
+        # Sample global 
+        drifted = self._sample_reset(n_samples)
 
-        rng = np.random.RandomState(self.random_state)
-        drift_mean = mean_vector * drift_intensity
-        noise = rng.multivariate_normal(drift_mean, cov_matrix * drift_intensity, size=n_samples)
+        # Select numeric columns 
+        numeric_cols = [c for c in self.numeric_cols if c in drifted.columns]
 
-        drifted_numeric = base_samples.values.astype(float) + noise
-        drifted = pd.DataFrame(drifted_numeric, columns=available_cols)
+        if len(numeric_cols) > 0:
+            base_numeric = drifted[numeric_cols].astype(float)
 
-        # attach categorical columns by sampling
-        for col in self.categorical_cols:
-            if col in self.original_data.columns:
-                drifted[col] = self.original_data[col].sample(n=n_samples, replace=True, random_state=self.random_state).values
+            # covariance + mean
+            cov_matrix = base_numeric.cov().values
+            mean_vector = base_numeric.mean().values
+
+            # random multivariate normal noise
+            rng = np.random.RandomState(self.random_state)
+            drift_mean = mean_vector * drift_intensity
+
+            noise = rng.multivariate_normal(
+                drift_mean,
+                cov_matrix * drift_intensity,
+                size=n_samples
+            )
+
+            drifted_numeric = base_numeric.values + noise
+
+            # replace numeric columns
+            drifted[numeric_cols] = drifted_numeric
 
         return drifted
+
 
     def generate_categorical_drift(self, n_samples: int = 1000, shift_probabilities: Dict[str, float] = None) -> pd.DataFrame:
         drifted = self._sample_reset(n_samples)
         if shift_probabilities is None:
-            shift_probabilities = {col: 0.3 for col in self.categorical_cols}
+            shift_probabilities = {col: 0.6 for col in self.categorical_cols}
 
         rng = np.random.RandomState(self.random_state)
 
@@ -249,36 +258,6 @@ class DataDriftGenerator:
 
         return drifted
 
-    def augment_with_noise(self, data: pd.DataFrame, noise_level: float = 0.05) -> pd.DataFrame:
-        augmented = data.copy()
-        rng = np.random.RandomState(self.random_state)
-        for col in self.numeric_cols:
-            if col in augmented.columns and col in self.numeric_stats:
-                std = self.numeric_stats[col]['std']
-                noise = rng.normal(0, std * noise_level, size=len(augmented))
-                augmented[col] = augmented[col].values.astype(float) + noise
-                augmented[col] = augmented[col].clip(lower=self.numeric_stats[col]['min'], upper=self.numeric_stats[col]['max'])
-        return augmented
-
-    def augment_with_mixup(self, data: pd.DataFrame, alpha: float = 0.2, n_augmented: int = None) -> pd.DataFrame:
-        if n_augmented is None:
-            n_augmented = len(data)
-        rng = np.random.RandomState(self.random_state)
-        augmented_list = []
-        for _ in range(n_augmented):
-            idx1, idx2 = rng.choice(len(data), 2, replace=False)
-            row1 = data.iloc[idx1]
-            row2 = data.iloc[idx2]
-            lam = rng.beta(alpha, alpha)
-            mixed = {}
-            for col in self.numeric_cols:
-                if col in data.columns:
-                    mixed[col] = lam * row1[col] + (1 - lam) * row2[col]
-            for col in self.categorical_cols:
-                if col in data.columns:
-                    mixed[col] = row1[col] if rng.random() < lam else row2[col]
-            augmented_list.append(mixed)
-        return pd.DataFrame(augmented_list)
 
     def combine_drifts(self, n_samples: int = 2000, mix: Dict[str, float] = None, **kwargs) -> pd.DataFrame:
         """Create a combined dataset mixing different drift types.
@@ -308,15 +287,15 @@ class DataDriftGenerator:
         parts = []
         allocated = 0
         for key, weight in norm.items():
-            if key not in supported:
-                continue
-            cnt = int(round(n_samples * weight))
-            allocated += cnt
-            # call generator with appropriate n
             func = supported[key]
-            # pass-through kwargs so user can tune e.g., drift_intensity
-            part = func(n_samples=cnt, **kwargs) if cnt > 0 else None
-            if part is not None:
+            cnt = int(round(n_samples * weight))
+            
+            if cnt > 0:
+                # filtrar sólo argumentos válidos
+                valid_params = inspect.signature(func).parameters
+                filtered_kwargs = {k: v for k, v in kwargs.items() if k in valid_params}
+                
+                part = func(n_samples=cnt, **filtered_kwargs)
                 parts.append(part)
 
         # if rounding caused shortage/overflow, adjust
@@ -332,22 +311,18 @@ class DataDriftGenerator:
         df = pd.concat(parts, ignore_index=True).sample(frac=1, random_state=self.random_state).reset_index(drop=True)
         return df
 
-    def visualize_drift(self, original: pd.DataFrame, drifted: pd.DataFrame, features: List[str] = None, save_path: str = None):
-        if features is None:
-            features = self.numeric_cols[:4]
-        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-        axes = axes.ravel()
-        for idx, col in enumerate(features):
-            if idx >= 4:
-                break
-            if col in original.columns and col in drifted.columns:
-                axes[idx].hist(original[col].dropna(), bins=30, alpha=0.5, label='Original', density=True)
-                axes[idx].hist(drifted[col].dropna(), bins=30, alpha=0.5, label='Drifted', density=True)
-                axes[idx].set_xlabel(col)
-                axes[idx].set_ylabel('Density')
-                axes[idx].legend()
-                axes[idx].set_title(f'Distribution Shift: {col}')
-        plt.tight_layout()
-        if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        plt.show()
+def main():
+    # Example usage
+    data = pd.read_csv('data/processed/steel_energy_modified_clean.csv')
+    generator = DataDriftGenerator(data)
+
+    drifted_data = generator.combine_drifts(
+        n_samples=15000,
+        mix={'sudden': 1},
+        drift_intensity=0.5
+    )
+
+    drifted_data.to_csv('data/processed/steel_energy_drifted.csv', index=False)
+
+if __name__ == "__main__":
+    main()
